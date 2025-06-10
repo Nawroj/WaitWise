@@ -45,45 +45,21 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     setLoading(true);
 
     try {
-      // --- NEW CLIENT MANAGEMENT LOGIC ---
       let clientId = null;
-
-      // 1. Check if a client with this phone number already exists for this shop
-      const { data: existingClient } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('phone', clientPhone)
-        .eq('shop_id', shop.id)
-        .single();
+      const { data: existingClient } = await supabase.from('clients').select('id').eq('phone', clientPhone).eq('shop_id', shop.id).single();
       
       if (existingClient) {
-        // 2a. If client exists, use their ID
         clientId = existingClient.id;
       } else {
-        // 2b. If client does not exist, create a new one
-        const { data: newClient, error: newClientError } = await supabase
-          .from('clients')
-          .insert({ name: clientName, phone: clientPhone, shop_id: shop.id })
-          .select('id')
-          .single();
-        
+        const { data: newClient, error: newClientError } = await supabase.from('clients').insert({ name: clientName, phone: clientPhone, shop_id: shop.id }).select('id').single();
         if (newClientError) throw newClientError;
         clientId = newClient.id;
       }
 
-      // 3. Now that we have a client ID, add the client to the queue
-      const { data: queueData, error: queueError } = await supabase
-        .from('queue_entries')
-        .insert({
-          shop_id: shop.id,
-          service_id: selectedService.id,
-          barber_id: selectedBarber.id,
-          client_id: clientId, // Use the determined client ID
-          client_name: clientName, // Still store name for easy display
-          client_phone: clientPhone, // Still store phone for easy display/notifications
-        })
-        .select()
-        .single();
+      const { data: queueData, error: queueError } = await supabase.from('queue_entries').insert({
+          shop_id: shop.id, service_id: selectedService.id, barber_id: selectedBarber.id, client_id: clientId,
+          client_name: clientName, client_phone: clientPhone,
+        }).select().single();
       
       if (queueError) throw queueError;
       
@@ -116,7 +92,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
       {queueInfo ? (
         <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-            <AlertTitle className="text-green-800 dark:text-green-300">You're in the queue!</AlertTitle>
+            <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400">
                 Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue. You&apos;ll be notified when it&apos;s your turn.
             </AlertDescription>
