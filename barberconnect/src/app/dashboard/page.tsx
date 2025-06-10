@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 
+// Import all the UI components we will use
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,8 +15,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
-import { Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react' // For delete icons
 
+// Define types for our data for better code quality
 type Shop = { id: string; name: string; address: string; owner_id: string }
 type Client = { id: string; name: string; phone: string; notes: string | null }
 type Service = { id:string; name: string; price: number; duration_minutes: number }
@@ -26,14 +28,13 @@ type QueueEntry = {
   queue_position: number;
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
   services: { name: string };
-  barbers: { id: string; name: string };
+  barbers: { id: string; name: string }; // Make sure barbers object is not null
 }
 
 export default function DashboardPage() {
   const supabase = createClient()
   const router = useRouter()
   
-  const [user, setUser] = useState<User | null>(null)
   const [shop, setShop] = useState<Shop | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   
+  // State for the edit dialog forms
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editedShopName, setEditedShopName] = useState('')
   const [editedShopAddress, setEditedShopAddress] = useState('')
@@ -50,11 +52,12 @@ export default function DashboardPage() {
   const [newServiceDuration, setNewServiceDuration] = useState('')
   const [newBarberName, setNewBarberName] = useState('')
 
+
+  // Data Fetching and Real-time Subscription
   useEffect(() => {
     async function fetchData() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) { router.push('/login'); return; }
-      setUser(authUser)
 
       const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', authUser.id).single()
       if (shopData) {
@@ -64,7 +67,10 @@ export default function DashboardPage() {
         
         const today = new Date().toISOString().slice(0, 10);
         const [
-          { data: entriesData }, { data: clientsData }, { data: servicesData }, { data: barbersData }
+          { data: entriesData }, 
+          { data: clientsData }, 
+          { data: servicesData }, 
+          { data: barbersData }
         ] = await Promise.all([
           supabase.from('queue_entries').select('*, services(name), barbers(id, name)').eq('shop_id', shopData.id).gte('created_at', `${today}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`).order('queue_position'),
           supabase.from('clients').select('*').eq('shop_id', shopData.id).order('name'),
@@ -82,6 +88,7 @@ export default function DashboardPage() {
     fetchData()
   }, [supabase, router])
 
+  // Real-time subscription useEffect
   useEffect(() => {
     if (!shop) return;
     const queueChannel = supabase.channel(`queue_for_${shop.id}`).on<QueueEntry>('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, payload => {
@@ -97,11 +104,13 @@ export default function DashboardPage() {
   }, [shop, supabase]);
 
 
+  // --- Logic and Handlers ---
   const doneList = useMemo(() => queueEntries.filter(e => e.status === 'done' || e.status === 'no_show'), [queueEntries]);
 
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
 
+  // --- Handlers for Edit Dialog ---
   const handleUpdateShopDetails = async () => {
     if (!shop) return;
     const { data: updatedShop } = await supabase.from('shops').update({ name: editedShopName, address: editedShopAddress }).eq('id', shop.id).select().single();
@@ -156,7 +165,7 @@ export default function DashboardPage() {
            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
              <DialogTrigger asChild><Button>Edit Shop</Button></DialogTrigger>
              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+               <DialogHeader>
                  <DialogTitle>Edit {editedShopName}</DialogTitle>
                  <DialogDescription>Update your shop details, services, and barbers here.</DialogDescription>
                </DialogHeader>
@@ -213,8 +222,10 @@ export default function DashboardPage() {
       
       <Separator />
 
+      {/* NEW: Per-Barber Queue View */}
       <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {barbers.map(barber => {
+          // Filter queue entries for the current barber
           const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
           const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
           const inProgressWithBarber = barberQueue.find(entry => entry.status === 'in_progress');
@@ -223,6 +234,7 @@ export default function DashboardPage() {
             <div key={barber.id} className="space-y-4">
               <h2 className="text-xl font-semibold">{barber.name}</h2>
               
+              {/* In Progress Card for this barber */}
               <Card className={inProgressWithBarber ? "border-primary" : "border-transparent shadow-none"}>
                 {inProgressWithBarber ? (
                   <>
@@ -246,6 +258,7 @@ export default function DashboardPage() {
 
               <Separator />
               
+              {/* Waiting List for this barber */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Badge variant="secondary">{waitingForBarber.length}</Badge>
@@ -269,6 +282,7 @@ export default function DashboardPage() {
           )
         })}
 
+        {/* Sidebar for Completed and Clients can go here or be moved to a separate page */}
         <div className="md:col-span-2 xl:col-span-3">
           <Card className="mt-8">
             <CardHeader><CardTitle>Client Directory</CardTitle></CardHeader>
@@ -276,7 +290,12 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader><TableRow><TableHead>Name</TableHead><TableHead className="text-right">Phone</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {clients.map(client => (<TableRow key={client.id}><TableCell className="font-medium">{client.name}</TableCell><TableCell className="text-right">{client.phone}</TableCell></TableRow>))}
+                  {clients.map(client => (
+                      <TableRow key={client.id}>
+                          <TableCell className="font-medium">{client.name}</TableCell>
+                          <TableCell className="text-right">{client.phone}</TableCell>
+                      </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -284,7 +303,14 @@ export default function DashboardPage() {
           <Card className="mt-8 bg-muted/50">
             <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
             <CardContent>
-               <div className="space-y-4">{doneList.map((entry) => (<div key={entry.id} className="flex items-center justify-between text-sm"><p>{entry.queue_position}. {entry.client_name}</p><Badge variant={entry.status === 'done' ? 'default' : 'secondary'}>{entry.status === 'done' ? 'Done' : 'No Show'}</Badge></div>))}</div>
+               <div className="space-y-4">
+                  {doneList.map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between text-sm">
+                      <p>{entry.queue_position}. {entry.client_name}</p>
+                      <Badge variant={entry.status === 'done' ? 'default' : 'secondary'}>{entry.status === 'done' ? 'Done' : 'No Show'}</Badge>
+                    </div>
+                  ))}
+                </div>
             </CardContent>
           </Card>
         </div>
