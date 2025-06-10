@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
-// Import all the new UI components from shadcn/ui
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,8 +12,6 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Separator } from '@/components/ui/separator'
 
-
-// Define types for our data for better code quality
 type Shop = { id: string; name: string; address: string; owner_id: string }
 type Service = { id: string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string }
@@ -28,7 +25,6 @@ export default function DashboardPage() {
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [loading, setLoading] = useState(true)
 
-  // State for our forms
   const [shopName, setShopName] = useState('')
   const [shopAddress, setShopAddress] = useState('')
   const [serviceName, setServiceName] = useState('')
@@ -36,7 +32,6 @@ export default function DashboardPage() {
   const [serviceDuration, setServiceDuration] = useState('')
   const [barberName, setBarberName] = useState('')
 
-  // Fetch all necessary data on component load
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -97,7 +92,6 @@ export default function DashboardPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-8">
-      {/* Header Section */}
       <header className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
@@ -105,16 +99,13 @@ export default function DashboardPage() {
         </div>
         <Button variant="outline" onClick={handleLogout}>Logout</Button>
       </header>
-
       <Separator />
-
       {!shop ? (
-        // SCENE 1: User has no shop, show the create form in a Card
         <div className="mt-8">
             <Card className="max-w-xl mx-auto">
                 <CardHeader>
                     <CardTitle className="text-2xl">Create Your Barbershop</CardTitle>
-                    <CardDescription>Let's get your shop set up. Add your business details here to get started.</CardDescription>
+                    <CardDescription>Let&apos;s get your shop set up. Add your business details here to get started.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleCreateShop} className="grid gap-4">
@@ -132,16 +123,12 @@ export default function DashboardPage() {
             </Card>
         </div>
       ) : (
-        // SCENE 2: User has a shop, show the management UI
         <div className="mt-8">
             <div className="mb-6">
                 <h2 className="text-2xl font-semibold">{shop.name}</h2>
                 <p className="text-muted-foreground">{shop.address}</p>
             </div>
-
-            {/* Main Content Grid - responsive 2-column layout */}
             <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
-                {/* Services Management Card */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Our Services</CardTitle>
@@ -183,8 +170,6 @@ export default function DashboardPage() {
                         </form>
                     </CardFooter>
                 </Card>
-
-                {/* Barbers Management Card */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Our Barbers</CardTitle>
