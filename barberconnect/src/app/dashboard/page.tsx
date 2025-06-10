@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import type { User } from '@supabase/supabase-js'
 
 // Import all the UI components we will use
 import { Button } from "@/components/ui/button"
