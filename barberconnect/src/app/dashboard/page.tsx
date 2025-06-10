@@ -5,6 +5,15 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
+// Import all the new UI components from shadcn/ui
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Separator } from '@/components/ui/separator'
+
+
 // Define types for our data for better code quality
 type Shop = { id: string; name: string; address: string; owner_id: string }
 type Service = { id: string; name: string; price: number; duration_minutes: number }
@@ -37,18 +46,11 @@ export default function DashboardPage() {
       }
       setUser(user)
 
-      // Check if the user has a shop
-      const { data: shopData, error: shopError } = await supabase
-        .from('shops')
-        .select('*')
-        .eq('owner_id', user.id)
-        .single() // We expect only one shop per user
-
+      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).single()
       if (shopData) {
         setShop(shopData)
-        // If a shop exists, fetch its services and barbers
-        const { data: servicesData } = await supabase.from('services').select('*').eq('shop_id', shopData.id)
-        const { data: barbersData } = await supabase.from('barbers').select('*').eq('shop_id', shopData.id)
+        const { data: servicesData } = await supabase.from('services').select('*').eq('shop_id', shopData.id).order('created_at')
+        const { data: barbersData } = await supabase.from('barbers').select('*').eq('shop_id', shopData.id).order('created_at')
         setServices(servicesData || [])
         setBarbers(barbersData || [])
       }
@@ -57,98 +59,164 @@ export default function DashboardPage() {
     fetchData()
   }, [supabase, router])
 
-  // Form submission handlers
   const handleCreateShop = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user || !shopName || !shopAddress) return
-
-    const { data, error } = await supabase
-      .from('shops')
-      .insert({ name: shopName, address: shopAddress, owner_id: user.id })
-      .select()
-      .single()
-    
+    const { data } = await supabase.from('shops').insert({ name: shopName, address: shopAddress, owner_id: user.id }).select().single()
     if (data) setShop(data)
-    else if (error) console.error('Error creating shop:', error)
   }
 
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!shop || !serviceName || !servicePrice || !serviceDuration) return
-    
-    const { data, error } = await supabase
-      .from('services')
-      .insert({ name: serviceName, price: parseFloat(servicePrice), duration_minutes: parseInt(serviceDuration), shop_id: shop.id })
-      .select()
-      .single()
-    
+    const { data } = await supabase.from('services').insert({ name: serviceName, price: parseFloat(servicePrice), duration_minutes: parseInt(serviceDuration), shop_id: shop.id }).select().single()
     if (data) setServices([...services, data])
-    setServiceName(''); setServicePrice(''); setServiceDuration(''); // Reset form
+    setServiceName(''); setServicePrice(''); setServiceDuration('');
   }
 
   const handleAddBarber = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!shop || !barberName) return
-
-    const { data, error } = await supabase
-      .from('barbers')
-      .insert({ name: barberName, shop_id: shop.id })
-      .select()
-      .single()
-    
+    const { data } = await supabase.from('barbers').insert({ name: barberName, shop_id: shop.id }).select().single()
     if (data) setBarbers([...barbers, data])
-    setBarberName(''); // Reset form
+    setBarberName('');
   }
 
-  if (loading) return <div>Loading...</div>
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/')
+  }
 
-  // RENDER LOGIC
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Loading...</p>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif' }}>
-      <h1>Dashboard</h1>
-      <p>Logged in as: {user?.email}</p>
-      <hr style={{ margin: '20px 0' }} />
+    <div className="container mx-auto p-4 md:p-8">
+      {/* Header Section */}
+      <header className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Logged in as: {user?.email}</p>
+        </div>
+        <Button variant="outline" onClick={handleLogout}>Logout</Button>
+      </header>
+
+      <Separator />
 
       {!shop ? (
-        // SCENE 1: User has no shop, show create form
-        <div>
-          <h2>Create Your Barbershop</h2>
-          <p>Let's get your shop set up. Add your business details here.</p>
-          <form onSubmit={handleCreateShop}>
-            <input type="text" placeholder="Shop Name" value={shopName} onChange={e => setShopName(e.target.value)} required style={{ padding: '8px', marginRight: '10px' }} />
-            <input type="text" placeholder="Shop Address" value={shopAddress} onChange={e => setShopAddress(e.target.value)} required style={{ padding: '8px', marginRight: '10px' }}/>
-            <button type="submit" style={{ padding: '8px 16px', cursor: 'pointer' }}>Create Shop</button>
-          </form>
+        // SCENE 1: User has no shop, show the create form in a Card
+        <div className="mt-8">
+            <Card className="max-w-xl mx-auto">
+                <CardHeader>
+                    <CardTitle className="text-2xl">Create Your Barbershop</CardTitle>
+                    <CardDescription>Let's get your shop set up. Add your business details here to get started.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form onSubmit={handleCreateShop} className="grid gap-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="shop-name">Shop Name</Label>
+                            <Input id="shop-name" placeholder="e.g., Bankstown Fresh Cuts" value={shopName} onChange={e => setShopName(e.target.value)} required />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="shop-address">Shop Address</Label>
+                            <Input id="shop-address" placeholder="e.g., 123 Chapel Road, Bankstown NSW" value={shopAddress} onChange={e => setShopAddress(e.target.value)} required />
+                        </div>
+                        <Button type="submit" className="w-full mt-2">Create Shop</Button>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
       ) : (
-        // SCENE 2: User has a shop, show management UI
-        <div>
-          <h2>{shop.name}</h2>
-          <p>{shop.address}</p>
-
-          <div style={{ display: 'flex', gap: '40px', marginTop: '40px' }}>
-            {/* Manage Services */}
-            <div style={{ flex: 1 }}>
-              <h3>Our Services</h3>
-              <ul>{services.map(s => <li key={s.id}>{s.name} - ${s.price} ({s.duration_minutes} mins)</li>)}</ul>
-              <form onSubmit={handleAddService} style={{ marginTop: '20px' }}>
-                <input type="text" placeholder="Service Name" value={serviceName} onChange={e => setServiceName(e.target.value)} required />
-                <input type="number" placeholder="Price" value={servicePrice} onChange={e => setServicePrice(e.target.value)} required />
-                <input type="number" placeholder="Duration (mins)" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} required />
-                <button type="submit">Add Service</button>
-              </form>
+        // SCENE 2: User has a shop, show the management UI
+        <div className="mt-8">
+            <div className="mb-6">
+                <h2 className="text-2xl font-semibold">{shop.name}</h2>
+                <p className="text-muted-foreground">{shop.address}</p>
             </div>
 
-            {/* Manage Barbers */}
-            <div style={{ flex: 1 }}>
-              <h3>Our Barbers</h3>
-              <ul>{barbers.map(b => <li key={b.id}>{b.name}</li>)}</ul>
-              <form onSubmit={handleAddBarber} style={{ marginTop: '20px' }}>
-                <input type="text" placeholder="Barber's Name" value={barberName} onChange={e => setBarberName(e.target.value)} required />
-                <button type="submit">Add Barber</button>
-              </form>
+            {/* Main Content Grid - responsive 2-column layout */}
+            <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
+                {/* Services Management Card */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Our Services</CardTitle>
+                        <CardDescription>Manage the services your shop offers.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Service</TableHead>
+                                    <TableHead>Price</TableHead>
+                                    <TableHead className="text-right">Duration</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {services.map(s => (
+                                    <TableRow key={s.id}>
+                                        <TableCell className="font-medium">{s.name}</TableCell>
+                                        <TableCell>${s.price}</TableCell>
+                                        <TableCell className="text-right">{s.duration_minutes} mins</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                    <CardFooter>
+                         <form onSubmit={handleAddService} className="flex gap-2 w-full items-end">
+                            <div className="grid gap-1.5 flex-grow">
+                                <Label htmlFor="service-name">New Service</Label>
+                                <Input id="service-name" placeholder="Standard Cut" value={serviceName} onChange={e => setServiceName(e.target.value)} required />
+                            </div>
+                             <div className="grid gap-1.5">
+                                <Input type="number" placeholder="Price" value={servicePrice} onChange={e => setServicePrice(e.target.value)} required />
+                            </div>
+                             <div className="grid gap-1.5">
+                                <Input type="number" placeholder="Mins" value={serviceDuration} onChange={e => setServiceDuration(e.target.value)} required />
+                            </div>
+                            <Button type="submit">Add</Button>
+                        </form>
+                    </CardFooter>
+                </Card>
+
+                {/* Barbers Management Card */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Our Barbers</CardTitle>
+                        <CardDescription>Manage your team of barbers.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {barbers.map(b => (
+                                    <TableRow key={b.id}>
+                                        <TableCell className="font-medium">{b.name}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                    <CardFooter>
+                        <form onSubmit={handleAddBarber} className="flex gap-2 w-full items-end">
+                            <div className="grid gap-1.5 flex-grow">
+                                <Label htmlFor="barber-name">New Barber</Label>
+                                <Input id="barber-name" placeholder="e.g., John Smith" value={barberName} onChange={e => setBarberName(e.target.value)} required />
+                            </div>
+                            <Button type="submit">Add</Button>
+                        </form>
+                    </CardFooter>
+                </Card>
             </div>
-          </div>
         </div>
       )}
     </div>

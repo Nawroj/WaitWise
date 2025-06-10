@@ -4,24 +4,31 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
+// Import all the UI components we will use
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('') // Our new state for the username
-  const [isSignUp, setIsSignUp] = useState(false) // To toggle between Sign In and Sign Up
+  const [username, setUsername] = useState('')
+  const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setError(null)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          // This is how we pass the username metadata!
           username: username,
         },
       },
@@ -30,14 +37,15 @@ export default function LoginPage() {
     if (error) {
       setError(error.message)
     } else {
-      // On successful sign-up, Supabase sends a confirmation email.
       alert('Sign up successful! Please check your email to confirm.')
-      setIsSignUp(false) // Switch back to sign in view
+      setIsSignUp(false)
     }
+    setLoading(false)
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setError(null)
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -48,38 +56,71 @@ export default function LoginPage() {
       setError(error.message)
     } else {
       router.push('/dashboard')
-      router.refresh() // Ensures the page re-renders with new auth state
+      router.refresh()
     }
+    setLoading(false)
   }
 
   return (
-    <div style={{ maxWidth: '400px', margin: '100px auto', fontFamily: 'sans-serif' }}>
-      {isSignUp ? (
-        // SIGN UP FORM
-        <form onSubmit={handleSignUp}>
-          <h2>Sign Up</h2>
-          <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
-          <button type="submit" style={{ width: '100%', padding: '10px', cursor: 'pointer' }}>Sign Up</button>
-          <p style={{ textAlign: 'center' }}>
-            Already have an account? <button type="button" onClick={() => setIsSignUp(false)} style={{ all: 'unset', cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}>Sign In</button>
-          </p>
-        </form>
-      ) : (
-        // SIGN IN FORM
-        <form onSubmit={handleSignIn}>
-          <h2>Sign In</h2>
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
-          <button type="submit" style={{ width: '100%', padding: '10px', cursor: 'pointer' }}>Sign In</button>
-          <p style={{ textAlign: 'center' }}>
-            Don't have an account? <button type="button" onClick={() => setIsSignUp(true)} style={{ all: 'unset', cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}>Sign Up</button>
-          </p>
-        </form>
-      )}
-
-      {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+      <Card className="w-full max-w-sm mx-4">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">
+            {isSignUp ? 'Create an Account' : 'Welcome Back'}
+          </CardTitle>
+          <CardDescription>
+            {isSignUp ? 'Enter your details to get started.' : 'Enter your credentials to access your dashboard.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="grid gap-4">
+            {isSignUp && (
+              <div className="grid gap-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="e.g., johnsmith"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="m@example.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+            </Button>
+          </form>
+          <div className="mt-4 text-center text-sm">
+            {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+            <Button variant="link" onClick={() => setIsSignUp(!isSignUp)} className="pl-1">
+              {isSignUp ? 'Sign In' : 'Sign Up'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
