@@ -1,51 +1,85 @@
-'use client' // This is a client-side component
+'use client'
 
-import { useState, useEffect } from 'react' // <-- Import useState
-import { Auth } from '@supabase/auth-ui-react'
-import { ThemeSupa } from '@supabase/auth-ui-shared'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
-  const supabase = createClient()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('') // Our new state for the username
+  const [isSignUp, setIsSignUp] = useState(false) // To toggle between Sign In and Sign Up
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  
-  // We will use state to hold the redirect URL
-  const [redirectUrl, setRedirectUrl] = useState<string | null>(null)
+  const supabase = createClient()
 
-  // This useEffect hook will only run ONCE in the browser after the page loads
-  useEffect(() => {
-    // Set the redirect URL using the browser's location object
-    setRedirectUrl(`${window.location.origin}/auth/callback`)
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        router.push('/dashboard')
-      }
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          // This is how we pass the username metadata!
+          username: username,
+        },
+      },
     })
 
-    return () => {
-      subscription.unsubscribe()
+    if (error) {
+      setError(error.message)
+    } else {
+      // On successful sign-up, Supabase sends a confirmation email.
+      alert('Sign up successful! Please check your email to confirm.')
+      setIsSignUp(false) // Switch back to sign in view
     }
-  }, [supabase, router])
+  }
 
-  // Show a loading message while we wait for the redirect URL to be set
-  if (!redirectUrl) {
-    return <div>Loading...</div>
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      setError(error.message)
+    } else {
+      router.push('/dashboard')
+      router.refresh() // Ensures the page re-renders with new auth state
+    }
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <div style={{ width: '320px' }}>
-        <Auth
-          supabaseClient={supabase}
-          appearance={{ theme: ThemeSupa }}
-          theme="dark"
-          providers={['google']}
-          // Use the state variable for the redirect URL
-          redirectTo={redirectUrl}
-        />
-      </div>
+    <div style={{ maxWidth: '400px', margin: '100px auto', fontFamily: 'sans-serif' }}>
+      {isSignUp ? (
+        // SIGN UP FORM
+        <form onSubmit={handleSignUp}>
+          <h2>Sign Up</h2>
+          <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
+          <button type="submit" style={{ width: '100%', padding: '10px', cursor: 'pointer' }}>Sign Up</button>
+          <p style={{ textAlign: 'center' }}>
+            Already have an account? <button type="button" onClick={() => setIsSignUp(false)} style={{ all: 'unset', cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}>Sign In</button>
+          </p>
+        </form>
+      ) : (
+        // SIGN IN FORM
+        <form onSubmit={handleSignIn}>
+          <h2>Sign In</h2>
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '8px', marginBottom: '10px' }} />
+          <button type="submit" style={{ width: '100%', padding: '10px', cursor: 'pointer' }}>Sign In</button>
+          <p style={{ textAlign: 'center' }}>
+            Don't have an account? <button type="button" onClick={() => setIsSignUp(true)} style={{ all: 'unset', cursor: 'pointer', color: 'blue', textDecoration: 'underline' }}>Sign Up</button>
+          </p>
+        </form>
+      )}
+
+      {error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
     </div>
   )
 }
