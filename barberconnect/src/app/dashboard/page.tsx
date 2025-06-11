@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 // Define types for our data for better code quality
 type Shop = { id: string; name: string; address: string; owner_id: string }
-type Client = { id: string; name: string; phone: string; notes: string | null }
+// The 'Client' type definition has been removed as it is no longer used in this component.
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
 type QueueEntry = {
@@ -68,14 +68,13 @@ export default function DashboardPage() {
         setEditedShopAddress(shopData.address);
 
         const today = new Date().toISOString().slice(0, 10);
+        // REMOVED: Fetching for the 'clients' table has been removed.
         const [
           { data: entriesData },
-          { data: clientsData },
           { data: servicesData },
           { data: barbersData }
         ] = await Promise.all([
           supabase.from('queue_entries').select('*, services(name), barbers(id, name)').eq('shop_id', shopData.id).gte('created_at', `${today}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`).order('queue_position'),
-          supabase.from('clients').select('*').eq('shop_id', shopData.id).order('name'),
           supabase.from('services').select('*').eq('shop_id', shopData.id).order('created_at'),
           supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shopData.id).order('created_at')
         ]);
@@ -93,7 +92,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!shop) return;
     
-    // This function will be called by the listener to get the most up-to-date queue
     const refetchQueue = async () => {
         const today = new Date().toISOString().slice(0, 10);
         const { data: entriesData } = await supabase
@@ -108,14 +106,16 @@ export default function DashboardPage() {
     
     const queueChannel = supabase.channel(`queue_for_${shop.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, 
-      (payload) => {
-        // Refetch the queue on any change to ensure all positions are correct
+      () => {
         refetchQueue();
       }
     ).subscribe();
 
+    // REMOVED: The real-time channel for 'clients' has been removed.
 
-    return () => { supabase.removeChannel(queueChannel); };
+    return () => { 
+      supabase.removeChannel(queueChannel);
+    };
   }, [shop, supabase]);
 
 
@@ -287,7 +287,6 @@ export default function DashboardPage() {
                   <>
                     <CardHeader>
                       <CardTitle className="flex justify-between items-start">
-                        {/* The position for "in progress" is still their original db number */}
                         <span>{inProgressWithBarber.client_name}</span>
                         <Badge variant="destructive">In Progress</Badge>
                       </CardTitle>
@@ -315,7 +314,6 @@ export default function DashboardPage() {
                   <Card key={entry.id}>
                     <CardHeader className="p-4">
                       <CardTitle className="text-base flex justify-between">
-                        {/* THIS IS THE FIX: The displayed number is the live position in the waiting list (index + 1) */}
                         <span>{index + 1}. {entry.client_name}</span>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
