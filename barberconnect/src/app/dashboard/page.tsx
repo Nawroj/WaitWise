@@ -40,7 +40,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   
@@ -82,7 +81,6 @@ export default function DashboardPage() {
         ]);
 
         setQueueEntries(entriesData as QueueEntry[] || []);
-        setClients(clientsData || []);
         setServices(servicesData || []);
         setBarbers(barbersData || []);
       }
@@ -116,11 +114,8 @@ export default function DashboardPage() {
       }
     ).subscribe();
 
-    const clientChannel = supabase.channel(`clients_for_${shop.id}`).on<Client>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'clients', filter: `shop_id=eq.${shop.id}`}, payload => {
-        setClients(current => [...current, payload.new as Client].sort((a,b) => a.name.localeCompare(b.name)));
-    }).subscribe();
 
-    return () => { supabase.removeChannel(queueChannel); supabase.removeChannel(clientChannel); };
+    return () => { supabase.removeChannel(queueChannel); };
   }, [shop, supabase]);
 
 
