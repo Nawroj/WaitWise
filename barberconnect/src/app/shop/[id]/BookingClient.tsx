@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card, CardContent } from '@/components/ui/card'
 
 // Define types for our data
 type Shop = { id: string; name: string; address: string; }
 type Service = { id: string; name: string; price: number; duration_minutes: number }
-type Barber = { id: string; name: string }
+type Barber = { id: string; name: string; avatar_url: string | null }
 
 interface BookingClientProps {
   shop: Shop;
@@ -24,16 +26,13 @@ interface BookingClientProps {
 export default function BookingClient({ shop, services, barbers }: BookingClientProps) {
   const supabase = createClient()
 
-  // State for user's selections
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null)
   
-  // State for form and submission
   const [clientName, setClientName] = useState('')
   const [clientPhone, setClientPhone] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // State to show success message after joining queue
   const [queueInfo, setQueueInfo] = useState<{ position: number; name: string } | null>(null);
 
   const handleJoinQueue = async (e: React.FormEvent) => {
@@ -84,7 +83,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
   return (
     <div className="container mx-auto max-w-2xl p-4 md:p-8">
-      <header className="mb-6">
+      <header className="mb-6 text-center">
         <h1 className="text-3xl font-bold tracking-tight">{shop.name}</h1>
         <p className="text-muted-foreground mt-1">{shop.address}</p>
       </header>
@@ -109,16 +108,28 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                 ))}
               </div>
             </div>
+            
             <div className="space-y-4">
               <h2 className="text-xl font-semibold">2. Select a Barber</h2>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {barbers.map(barber => (
-                  <Button type="button" key={barber.id} variant={selectedBarber?.id === barber.id ? 'default' : 'outline'} onClick={() => setSelectedBarber(barber)}>
-                    {barber.name}
-                  </Button>
+                  <Card 
+                    key={barber.id} 
+                    className={`cursor-pointer transition-all ${selectedBarber?.id === barber.id ? 'ring-2 ring-primary' : 'ring-1 ring-transparent hover:ring-primary/50'}`}
+                    onClick={() => setSelectedBarber(barber)}
+                  >
+                    <CardContent className="flex flex-col items-center p-4">
+                      <Avatar className="w-20 h-20 mb-2">
+                        <AvatarImage src={barber.avatar_url || undefined} alt={barber.name} />
+                        <AvatarFallback>{barber.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                      </Avatar>
+                      <p className="font-medium text-center">{barber.name}</p>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </div>
+            
             <div className="space-y-4 pt-4">
               <h2 className="text-xl font-semibold">3. Your Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

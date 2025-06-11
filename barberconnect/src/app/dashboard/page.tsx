@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import type { User } from '@supabase/supabase-js'
 
 // Import all the UI components we will use
 import { Button } from "@/components/ui/button"
@@ -14,20 +15,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
-import { Trash2 } from 'lucide-react' // For delete icons
+import { Trash2 } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
 
 // Define types for our data for better code quality
 type Shop = { id: string; name: string; address: string; owner_id: string }
-type Client = { id: string; name: string; phone: string; notes: string | null }
 type Service = { id:string; name: string; price: number; duration_minutes: number }
-type Barber = { id: string; name: string }
+type Barber = { id: string; name: string; avatar_url: string | null }
 type QueueEntry = {
   id: string;
   client_name: string;
   queue_position: number;
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
   services: { name: string };
-  barbers: { id: string; name: string }; // Make sure barbers object is not null
+  barbers: { id: string; name: string };
 }
 
 export default function DashboardPage() {
@@ -38,11 +40,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   
-  // State for the edit dialog forms
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editedShopName, setEditedShopName] = useState('')
   const [editedShopAddress, setEditedShopAddress] = useState('')
@@ -50,66 +50,78 @@ export default function DashboardPage() {
   const [newServicePrice, setNewServicePrice] = useState('')
   const [newServiceDuration, setNewServiceDuration] = useState('')
   const [newBarberName, setNewBarberName] = useState('')
-
+  const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null) // State for the uploaded file
 
   // Data Fetching and Real-time Subscription
   useEffect(() => {
     async function fetchData() {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.push('/login'); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
+      }
 
-      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', authUser.id).single()
+      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).single();
       if (shopData) {
-        setShop(shopData)
-        setEditedShopName(shopData.name)
-        setEditedShopAddress(shopData.address)
-        
+        setShop(shopData);
+        setEditedShopName(shopData.name);
+        setEditedShopAddress(shopData.address);
+
         const today = new Date().toISOString().slice(0, 10);
         const [
-          { data: entriesData }, 
-          { data: clientsData }, 
-          { data: servicesData }, 
+          { data: entriesData },
+          { data: servicesData },
           { data: barbersData }
         ] = await Promise.all([
           supabase.from('queue_entries').select('*, services(name), barbers(id, name)').eq('shop_id', shopData.id).gte('created_at', `${today}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`).order('queue_position'),
-          supabase.from('clients').select('*').eq('shop_id', shopData.id).order('name'),
           supabase.from('services').select('*').eq('shop_id', shopData.id).order('created_at'),
-          supabase.from('barbers').select('*').eq('shop_id', shopData.id).order('created_at')
+          supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shopData.id).order('created_at')
         ]);
-          
+
         setQueueEntries(entriesData as QueueEntry[] || []);
-        setClients(clientsData || []);
         setServices(servicesData || []);
         setBarbers(barbersData || []);
       }
-      setLoading(false)
+      setLoading(false);
     }
-    fetchData()
-  }, [supabase, router])
+    fetchData();
+  }, [supabase, router]);
 
   // Real-time subscription useEffect
   useEffect(() => {
     if (!shop) return;
-    const queueChannel = supabase.channel(`queue_for_${shop.id}`).on<QueueEntry>('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, payload => {
-        if (payload.eventType === 'INSERT') { setQueueEntries(current => [...current, payload.new as QueueEntry].sort((a,b) => a.queue_position - b.queue_position)); }
-        if (payload.eventType === 'UPDATE') { setQueueEntries(current => current.map(e => e.id === (payload.new as QueueEntry).id ? payload.new as QueueEntry : e)); }
-    }).subscribe();
+    
+    const queueChannel = supabase.channel(`queue_for_${shop.id}`)
+      .on<QueueEntry>('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, payload => {
+          if (payload.eventType === 'INSERT') {
+            async function refetchQueue() {
+                const today = new Date().toISOString().slice(0, 10);
+                const { data: entriesData } = await supabase
+                  .from('queue_entries')
+                  .select('*, services(name), barbers(id, name)')
+                  .eq('shop_id', shop!.id)
+                  .gte('created_at', `${today}T00:00:00Z`)
+                  .lte('created_at', `${today}T23:59:59Z`)
+                  .order('queue_position');
+                setQueueEntries(entriesData as QueueEntry[] || []);
+            }
+            refetchQueue();
+          }
+          if (payload.eventType === 'UPDATE') {
+            setQueueEntries(current => current.map(e => e.id === (payload.new as QueueEntry).id ? payload.new as QueueEntry : e));
+          }
+      }).subscribe();
 
-    const clientChannel = supabase.channel(`clients_for_${shop.id}`).on<Client>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'clients', filter: `shop_id=eq.${shop.id}`}, payload => {
-        setClients(current => [...current, payload.new as Client].sort((a,b) => a.name.localeCompare(b.name)));
-    }).subscribe();
-
-    return () => { supabase.removeChannel(queueChannel); supabase.removeChannel(clientChannel); };
+    return () => {
+      supabase.removeChannel(queueChannel);
+    };
   }, [shop, supabase]);
 
 
-  // --- Logic and Handlers ---
   const doneList = useMemo(() => queueEntries.filter(e => e.status === 'done' || e.status === 'no_show'), [queueEntries]);
-
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
 
-  // --- Handlers for Edit Dialog ---
   const handleUpdateShopDetails = async () => {
     if (!shop) return;
     const { data: updatedShop } = await supabase.from('shops').update({ name: editedShopName, address: editedShopAddress }).eq('id', shop.id).select().single();
@@ -136,8 +148,28 @@ export default function DashboardPage() {
   
   const handleAddBarber = async () => {
     if (!shop || !newBarberName) return;
-    const { data: newBarber } = await supabase.from('barbers').insert({ name: newBarberName, shop_id: shop.id }).select().single();
-    if (newBarber) { setBarbers([...barbers, newBarber]); setNewBarberName(''); }
+    let avatarUrl: string | null = null;
+    if (newBarberAvatarFile) {
+      const file = newBarberAvatarFile;
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${shop.id}/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+      if (uploadError) {
+        alert('Error uploading avatar. Please try again.');
+        console.error('Upload Error: ', uploadError);
+        return;
+      }
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      avatarUrl = data.publicUrl;
+    }
+    const { data: newBarber } = await supabase.from('barbers').insert({ name: newBarberName, avatar_url: avatarUrl, shop_id: shop.id }).select().single();
+    if (newBarber) { 
+      setBarbers([...barbers, newBarber]); 
+      setNewBarberName('');
+      setNewBarberAvatarFile(null);
+      const fileInput = document.getElementById('new-barber-avatar') as HTMLInputElement;
+      if(fileInput) fileInput.value = '';
+    }
   };
 
   const handleDeleteBarber = async (barberId: string) => {
@@ -200,15 +232,33 @@ export default function DashboardPage() {
                    <CardHeader><CardTitle>Manage Barbers</CardTitle></CardHeader>
                    <CardContent>
                      <Table>
-                        <TableHeader><TableRow><TableHead>Name</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Barber</TableHead><TableHead></TableHead></TableRow></TableHeader>
                         <TableBody>
-                          {barbers.map(b => <TableRow key={b.id}><TableCell>{b.name}</TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>)}
+                          {barbers.map(b => (
+                            <TableRow key={b.id}>
+                              <TableCell className="flex items-center gap-4">
+                                <Avatar>
+                                  <AvatarImage src={b.avatar_url || undefined} alt={b.name} />
+                                  <AvatarFallback>{b.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                </Avatar>
+                                {b.name}
+                              </TableCell>
+                              <TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                      </Table>
                    </CardContent>
-                   <CardFooter className="flex gap-2 items-end">
-                      <div className="grid gap-1.5 flex-grow"><Label htmlFor="new-barber-name">New Barber</Label><Input id="new-barber-name" placeholder="Name" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} /></div>
-                      <Button onClick={handleAddBarber}>Add</Button>
+                   <CardFooter className="flex flex-col gap-4 items-start">
+                      <div className="grid gap-1.5 w-full">
+                        <Label htmlFor="new-barber-name">New Barber Name</Label>
+                        <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
+                      </div>
+                      <div className="grid gap-1.5 w-full">
+                          <Label htmlFor="new-barber-avatar">Avatar</Label>
+                          <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
+                      </div>
+                      <Button onClick={handleAddBarber}>Add Barber</Button>
                    </CardFooter>
                  </Card>
                </div>
@@ -221,10 +271,8 @@ export default function DashboardPage() {
       
       <Separator />
 
-      {/* NEW: Per-Barber Queue View */}
       <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {barbers.map(barber => {
-          // Filter queue entries for the current barber
           const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
           const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
           const inProgressWithBarber = barberQueue.find(entry => entry.status === 'in_progress');
@@ -233,7 +281,6 @@ export default function DashboardPage() {
             <div key={barber.id} className="space-y-4">
               <h2 className="text-xl font-semibold">{barber.name}</h2>
               
-              {/* In Progress Card for this barber */}
               <Card className={inProgressWithBarber ? "border-primary" : "border-transparent shadow-none"}>
                 {inProgressWithBarber ? (
                   <>
@@ -257,7 +304,6 @@ export default function DashboardPage() {
 
               <Separator />
               
-              {/* Waiting List for this barber */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Badge variant="secondary">{waitingForBarber.length}</Badge>
@@ -281,35 +327,11 @@ export default function DashboardPage() {
           )
         })}
 
-        {/* Sidebar for Completed and Clients can go here or be moved to a separate page */}
         <div className="md:col-span-2 xl:col-span-3">
-          <Card className="mt-8">
-            <CardHeader><CardTitle>Client Directory</CardTitle></CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader><TableRow><TableHead>Name</TableHead><TableHead className="text-right">Phone</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {clients.map(client => (
-                      <TableRow key={client.id}>
-                          <TableCell className="font-medium">{client.name}</TableCell>
-                          <TableCell className="text-right">{client.phone}</TableCell>
-                      </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
           <Card className="mt-8 bg-muted/50">
             <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
             <CardContent>
-               <div className="space-y-4">
-                  {doneList.map((entry) => (
-                    <div key={entry.id} className="flex items-center justify-between text-sm">
-                      <p>{entry.queue_position}. {entry.client_name}</p>
-                      <Badge variant={entry.status === 'done' ? 'default' : 'secondary'}>{entry.status === 'done' ? 'Done' : 'No Show'}</Badge>
-                    </div>
-                  ))}
-                </div>
+               <div className="space-y-4">{doneList.map((entry) => (<div key={entry.id} className="flex items-center justify-between text-sm"><p>{entry.queue_position}. {entry.client_name}</p><Badge variant={entry.status === 'done' ? 'default' : 'secondary'}>{entry.status === 'done' ? 'Done' : 'No Show'}</Badge></div>))}</div>
             </CardContent>
           </Card>
         </div>
