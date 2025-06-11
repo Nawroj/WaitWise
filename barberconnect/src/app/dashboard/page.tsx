@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 // Define types for our data for better code quality
 type Shop = { id: string; name: string; address: string; owner_id: string }
+type Client = { id: string; name: string; phone: string; notes: string | null }
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
 type QueueEntry = {
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   
@@ -49,7 +51,7 @@ export default function DashboardPage() {
   const [newServicePrice, setNewServicePrice] = useState('')
   const [newServiceDuration, setNewServiceDuration] = useState('')
   const [newBarberName, setNewBarberName] = useState('')
-  const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null) // State for the uploaded file
+  const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null)
 
   // Data Fetching and Real-time Subscription
   useEffect(() => {
@@ -69,15 +71,18 @@ export default function DashboardPage() {
         const today = new Date().toISOString().slice(0, 10);
         const [
           { data: entriesData },
+          { data: clientsData },
           { data: servicesData },
           { data: barbersData }
         ] = await Promise.all([
           supabase.from('queue_entries').select('*, services(name), barbers(id, name)').eq('shop_id', shopData.id).gte('created_at', `${today}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`).order('queue_position'),
+          supabase.from('clients').select('*').eq('shop_id', shopData.id).order('name'),
           supabase.from('services').select('*').eq('shop_id', shopData.id).order('created_at'),
           supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shopData.id).order('created_at')
         ]);
 
         setQueueEntries(entriesData as QueueEntry[] || []);
+        setClients(clientsData || []);
         setServices(servicesData || []);
         setBarbers(barbersData || []);
       }
@@ -90,34 +95,37 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!shop) return;
     
+    // This function will be called by the listener to get the most up-to-date queue
+    const refetchQueue = async () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: entriesData } = await supabase
+          .from('queue_entries')
+          .select('*, services(name), barbers(id, name)')
+          .eq('shop_id', shop.id)
+          .gte('created_at', `${today}T00:00:00Z`)
+          .lte('created_at', `${today}T23:59:59Z`)
+          .order('queue_position');
+        setQueueEntries(entriesData as QueueEntry[] || []);
+    }
+    
     const queueChannel = supabase.channel(`queue_for_${shop.id}`)
-      .on<QueueEntry>('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, payload => {
-          if (payload.eventType === 'INSERT') {
-            async function refetchQueue() {
-                const today = new Date().toISOString().slice(0, 10);
-                const { data: entriesData } = await supabase
-                  .from('queue_entries')
-                  .select('*, services(name), barbers(id, name)')
-                  .eq('shop_id', shop!.id)
-                  .gte('created_at', `${today}T00:00:00Z`)
-                  .lte('created_at', `${today}T23:59:59Z`)
-                  .order('queue_position');
-                setQueueEntries(entriesData as QueueEntry[] || []);
-            }
-            refetchQueue();
-          }
-          if (payload.eventType === 'UPDATE') {
-            setQueueEntries(current => current.map(e => e.id === (payload.new as QueueEntry).id ? payload.new as QueueEntry : e));
-          }
-      }).subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, 
+      (payload) => {
+        // Refetch the queue on any change to ensure all positions are correct
+        refetchQueue();
+      }
+    ).subscribe();
 
-    return () => {
-      supabase.removeChannel(queueChannel);
-    };
+    const clientChannel = supabase.channel(`clients_for_${shop.id}`).on<Client>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'clients', filter: `shop_id=eq.${shop.id}`}, payload => {
+        setClients(current => [...current, payload.new as Client].sort((a,b) => a.name.localeCompare(b.name)));
+    }).subscribe();
+
+    return () => { supabase.removeChannel(queueChannel); supabase.removeChannel(clientChannel); };
   }, [shop, supabase]);
 
 
   const doneList = useMemo(() => queueEntries.filter(e => e.status === 'done' || e.status === 'no_show'), [queueEntries]);
+
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -155,7 +163,6 @@ export default function DashboardPage() {
       const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
       if (uploadError) {
         alert('Error uploading avatar. Please try again.');
-        console.error('Upload Error: ', uploadError);
         return;
       }
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
@@ -285,7 +292,8 @@ export default function DashboardPage() {
                   <>
                     <CardHeader>
                       <CardTitle className="flex justify-between items-start">
-                        <span>{inProgressWithBarber.queue_position}. {inProgressWithBarber.client_name}</span>
+                        {/* The position for "in progress" is still their original db number */}
+                        <span>{inProgressWithBarber.client_name}</span>
                         <Badge variant="destructive">In Progress</Badge>
                       </CardTitle>
                       <CardDescription>Service: {inProgressWithBarber.services?.name}</CardDescription>
@@ -308,11 +316,12 @@ export default function DashboardPage() {
                   <Badge variant="secondary">{waitingForBarber.length}</Badge>
                   Waiting
                 </h3>
-                {waitingForBarber.map(entry => (
+                {waitingForBarber.map((entry, index) => (
                   <Card key={entry.id}>
                     <CardHeader className="p-4">
                       <CardTitle className="text-base flex justify-between">
-                        <span>{entry.queue_position}. {entry.client_name}</span>
+                        {/* THIS IS THE FIX: The displayed number is the live position in the waiting list (index + 1) */}
+                        <span>{index + 1}. {entry.client_name}</span>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
                           <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber}>Start</Button>
@@ -325,12 +334,11 @@ export default function DashboardPage() {
             </div>
           )
         })}
-
-        <div className="md:col-span-2 xl:col-span-3">
+      <div className="md:col-span-2 xl:col-span-3">
           <Card className="mt-8 bg-muted/50">
             <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
             <CardContent>
-               <div className="space-y-4">{doneList.map((entry) => (<div key={entry.id} className="flex items-center justify-between text-sm"><p>{entry.queue_position}. {entry.client_name}</p><Badge variant={entry.status === 'done' ? 'default' : 'secondary'}>{entry.status === 'done' ? 'Done' : 'No Show'}</Badge></div>))}</div>
+               <div className="space-y-4">{doneList.map((entry, index) => (<div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers.name}</span></p><Badge variant={entry.status === 'done' ? 'default' : 'secondary'}>{entry.status === 'done' ? 'Done' : 'No Show'}</Badge></div>))}</div>
             </CardContent>
           </Card>
         </div>

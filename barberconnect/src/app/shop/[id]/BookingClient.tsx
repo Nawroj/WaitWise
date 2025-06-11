@@ -63,7 +63,26 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       if (queueError) throw queueError;
       
       if (queueData) {
-        setQueueInfo({ position: queueData.queue_position, name: queueData.client_name });
+        // Fetch the current waiting list for the selected barber to get the accurate position.
+        const { data: waitingQueue, error: waitingQueueError } = await supabase
+            .from('queue_entries')
+            .select('id, queue_position')
+            .eq('barber_id', selectedBarber.id)
+            .eq('status', 'waiting')
+            .order('queue_position', { ascending: true });
+        
+        if (waitingQueueError) {
+            console.error("Could not fetch waiting queue:", waitingQueueError);
+            // Fallback to the position from the database insert if the queue fetch fails.
+            setQueueInfo({ position: queueData.queue_position, name: queueData.client_name });
+        } else {
+            // Find the position of the new client in the fetched list.
+            const position = waitingQueue.findIndex(entry => entry.id === queueData.id) + 1;
+            const finalPosition = position > 0 ? position : waitingQueue.length;
+            setQueueInfo({ position: finalPosition, name: queueData.client_name });
+        }
+        
+        // Reset form state
         setSelectedService(null);
         setSelectedBarber(null);
         setClientName('');
