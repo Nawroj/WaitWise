@@ -12,13 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
-import { Trash2 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Trash2, Edit } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 // Types remain the same...
-type Shop = { id: string; name: string; address: string; owner_id: string }
-type Service = { id:string; name: string; price: number; duration_minutes: number }
-type Barber = { id: string; name: string; avatar_url: string | null }
 type QueueEntry = {
   id: string;
   client_name: string;
@@ -26,9 +24,13 @@ type QueueEntry = {
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
   barbers: { id: string; name: string; };
   queue_entry_services: {
-    services: { name: string; } | null
+    services: { id: string, name: string; } | null
   }[] | null;
 }
+type Shop = { id: string; name: string; address: string; owner_id: string }
+type Service = { id:string; name: string; price: number; duration_minutes: number }
+type Barber = { id: string; name: string; avatar_url: string | null }
+
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -40,6 +42,13 @@ export default function DashboardPage() {
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+
+  // --- SIMPLIFIED STATE FOR EDITING QUEUE ENTRIES ---
+  const [editingQueueEntry, setEditingQueueEntry] = useState<QueueEntry | null>(null);
+  const [isEditQueueEntryDialogOpen, setIsEditQueueEntryDialogOpen] = useState(false);
+  const [editedBarberId, setEditedBarberId] = useState('');
+  
+  // State for the main edit shop dialog
   const [editedShopName, setEditedShopName] = useState('')
   const [editedShopAddress, setEditedShopAddress] = useState('')
   const [newServiceName, setNewServiceName] = useState('')
@@ -52,7 +61,7 @@ export default function DashboardPage() {
     const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from('queue_entries')
-      .select(`*, barbers ( id, name ), queue_entry_services ( services ( name ) )`)
+      .select(`*, barbers ( id, name ), queue_entry_services ( services ( id, name ) )`)
       .eq('shop_id', shopId)
       .gte('created_at', `${today}T00:00:00Z`)
       .lte('created_at', `${today}T23:59:59Z`)
@@ -91,7 +100,7 @@ export default function DashboardPage() {
     initialFetch();
   }, [supabase, router, fetchQueueData]);
 
-  // This hook for the queue is correct and remains.
+  // Realtime subscriptions remain the same...
   useEffect(() => {
     if (!shop) return;
     const channel = supabase.channel(`queue_for_${shop.id}`)
@@ -100,7 +109,6 @@ export default function DashboardPage() {
         setQueueEntries(updatedQueue);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' }, async () => {
-         // This assumes service changes might affect queue display. A full queue refresh is safe.
         const updatedQueue = await fetchQueueData(shop.id);
         setQueueEntries(updatedQueue);
       })
@@ -108,52 +116,73 @@ export default function DashboardPage() {
     return () => { supabase.removeChannel(channel); };
   }, [shop, supabase, fetchQueueData]);
 
-  // NEW: Add a real-time subscription for the 'services' table.
   useEffect(() => {
     if (!shop) return;
     const servicesChannel = supabase
       .channel(`services_for_${shop.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'services', filter: `shop_id=eq.${shop.id}`}, 
-        (payload) => {
-          setServices((currentServices) => [...currentServices, payload.new as Service]);
-        }
-      )
+        (payload) => setServices((current) => [...current, payload.new as Service]))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'services', filter: `shop_id=eq.${shop.id}`},
-        (payload) => {
-          setServices((currentServices) => currentServices.filter(s => s.id !== payload.old.id));
-        }
-      )
+        (payload) => setServices((current) => current.filter(s => s.id !== payload.old.id)))
       .subscribe();
-
     return () => { supabase.removeChannel(servicesChannel); };
   }, [shop, supabase]);
 
-  // NEW: Add a real-time subscription for the 'barbers' table.
   useEffect(() => {
     if (!shop) return;
     const barbersChannel = supabase
       .channel(`barbers_for_${shop.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'barbers', filter: `shop_id=eq.${shop.id}`},
-        (payload) => {
-          setBarbers((currentBarbers) => [...currentBarbers, payload.new as Barber]);
-        }
-      )
+        (payload) => setBarbers((current) => [...current, payload.new as Barber]))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'barbers', filter: `shop_id=eq.${shop.id}`},
-        (payload) => {
-          setBarbers((currentBarbers) => currentBarbers.filter(b => b.id !== payload.old.id));
-        }
-      )
+        (payload) => setBarbers((current) => current.filter(b => b.id !== payload.old.id)))
       .subscribe();
-
     return () => { supabase.removeChannel(barbersChannel); };
   }, [shop, supabase]);
 
 
-  const doneList = useMemo(() => queueEntries.filter(e => e.status === 'done' || e.status === 'no_show'), [queueEntries]);
+  const completedList = useMemo(() => queueEntries.filter(e => e.status === 'done'), [queueEntries]);
+  const noShowList = useMemo(() => queueEntries.filter(e => e.status === 'no_show'), [queueEntries]);
   
-  // Handlers remain the same...
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
+  
+  const handleDeleteFromQueue = async (id: string) => {
+    if (!confirm("Are you sure you want to permanently delete this entry?")) return;
+    try {
+      await supabase.from('queue_entries').delete().eq('id', id).throwOnError();
+    } catch (error) {
+      console.error("Delete queue entry error:", error);
+      alert("Could not delete this entry.");
+    }
+  }
+
+  // --- UPDATED HANDLER TO OPEN THE EDIT DIALOG ---
+  const handleOpenEditDialog = (entry: QueueEntry) => {
+    setEditingQueueEntry(entry);
+    setEditedBarberId(entry.barbers.id);
+    setIsEditQueueEntryDialogOpen(true);
+  }
+
+  // --- SIMPLIFIED HANDLER TO UPDATE ONLY THE BARBER ---
+  const handleUpdateQueueEntry = async () => {
+    if (!editingQueueEntry) return;
+    
+    const { error } = await supabase
+      .from('queue_entries')
+      .update({ barber_id: editedBarberId })
+      .eq('id', editingQueueEntry.id);
+    
+    if (error) {
+      alert(`Error updating barber: ${error.message}`);
+      return;
+    }
+
+    setIsEditQueueEntryDialogOpen(false);
+    setEditingQueueEntry(null);
+  }
+
+  // Other handlers remain the same...
   const handleUpdateShopDetails = async () => {
     if (!shop) return;
     const { data: updatedShop } = await supabase.from('shops').update({ name: editedShopName, address: editedShopAddress }).eq('id', shop.id).select().single();
@@ -162,7 +191,6 @@ export default function DashboardPage() {
   };
   const handleAddService = async () => {
     if (!shop || !newServiceName || !newServicePrice || !newServiceDuration) return;
-    // The insert will now be automatically handled by the realtime subscription.
     const { error } = await supabase.from('services').insert({ name: newServiceName, price: parseFloat(newServicePrice), duration_minutes: parseInt(newServiceDuration), shop_id: shop.id });
     if (!error) { 
       setNewServiceName(''); 
@@ -173,7 +201,6 @@ export default function DashboardPage() {
   const handleDeleteService = async (serviceId: string) => {
     if (!confirm("Are you sure you want to delete this service?")) return;
     try {
-      // The delete will be automatically handled by the realtime subscription.
       await supabase.from('services').delete().eq('id', serviceId).throwOnError();
     } catch (error) {
       console.error("Delete service error:", error);
@@ -195,7 +222,6 @@ export default function DashboardPage() {
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
       avatarUrl = data.publicUrl;
     }
-    // The insert will be automatically handled by the realtime subscription.
     const { error } = await supabase.from('barbers').insert({ name: newBarberName, avatar_url: avatarUrl, shop_id: shop.id });
     if (!error) { 
       setNewBarberName('');
@@ -207,7 +233,6 @@ export default function DashboardPage() {
   const handleDeleteBarber = async (barberId: string) => {
     if (!confirm("Are you sure you want to delete this barber?")) return;
     try {
-      // The delete will be automatically handled by the realtime subscription.
       await supabase.from('barbers').delete().eq('id', barberId).throwOnError();
     } catch (error) {
       console.error("Delete barber error:", error);
@@ -218,18 +243,19 @@ export default function DashboardPage() {
   if (loading) { return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div> }
   if (!shop) { return <div className="p-8">Please create a shop to view the dashboard.</div> }
 
-  // The JSX for rendering remains exactly the same...
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      {/* ... all your JSX code from <header> to the closing </div> */}
-      <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
-        <div className="flex items-center gap-2">
-           <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
-           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-             <DialogTrigger asChild><Button>Edit Shop</Button></DialogTrigger>
-             <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-               <DialogHeader>
+    <>
+      <div className="container mx-auto p-4 md:p-8">
+        {/* Header and main Edit Shop dialog remain the same */}
+        <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
+          <div className="flex items-center gap-2">
+            <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogTrigger asChild><Button>Edit Shop</Button></DialogTrigger>
+              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                 {/* ... Edit shop cards ... */}
+                 <DialogHeader>
                  <DialogTitle>Edit {editedShopName}</DialogTitle>
                  <DialogDescription>Update your shop details, services, and barbers here.</DialogDescription>
                </DialogHeader>
@@ -293,89 +319,146 @@ export default function DashboardPage() {
                  </Card>
                </div>
                <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
-             </DialogContent>
-           </Dialog>
-           <Button variant="ghost" size="sm" onClick={handleLogout}>Logout</Button>
-        </div>
-      </header>
-      <Separator />
-      <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {barbers.map(barber => {
-          const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
-          const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
-          const inProgressWithBarber = barberQueue.find(entry => entry.status === 'in_progress');
-          return (
-            <div key={barber.id} className="space-y-4">
-              <h2 className="text-xl font-semibold">{barber.name}</h2>
-              <Card className={inProgressWithBarber ? "border-primary" : "border-transparent shadow-none"}>
-                {inProgressWithBarber ? (
-                  <>
-                    <CardHeader>
-                      <CardTitle className="flex justify-between items-start">
-                        <span>{inProgressWithBarber.client_name}</span>
-                        <Badge variant="destructive" className="dark:text-black">In Progress</Badge>
-
-                      </CardTitle>
-                      <CardDescription>
-                        Services: {
-                          inProgressWithBarber.queue_entry_services && inProgressWithBarber.queue_entry_services.length > 0
-                            ? inProgressWithBarber.queue_entry_services
-                                .map(item => item.services?.name)
-                                .filter(Boolean)
-                                .join(', ')
-                            : 'No services listed'
-                        }
-                      </CardDescription>
-                    </CardHeader>
-                    <CardFooter className="flex justify-end">
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleUpdateStatus(inProgressWithBarber.id, 'done')}>Mark as Done</Button>
-                    </CardFooter>
-                  </>
-                ) : (
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-center text-muted-foreground">Available</p>
-                  </CardContent>
-                )}
-              </Card>
-              <Separator />
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Badge variant="secondary">{waitingForBarber.length}</Badge>
-                  Waiting
-                </h3>
-                {waitingForBarber.map((entry, index) => (
-                  <Card key={entry.id}>
-                    <CardHeader className="p-4">
-                      <CardTitle className="text-base flex justify-between items-start">
-                        <span className="font-semibold">{index + 1}. {entry.client_name}</span>
-                        <div className="flex gap-1 flex-shrink-0">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber}>Start</Button>
-                        </div>
-                      </CardTitle>
-                      <CardDescription className="text-xs pt-1">
-                        {
-                          entry.queue_entry_services && entry.queue_entry_services.length > 0
-                            ? entry.queue_entry_services.map(item => item.services?.name).filter(Boolean).join(', ')
-                            : 'No services listed'
-                        }
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                ))}
+              </DialogContent>
+            </Dialog>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>Logout</Button>
+          </div>
+        </header>
+        <Separator />
+        <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+          {barbers.map(barber => {
+            const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
+            const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
+            const inProgressWithBarber = barberQueue.find(entry => entry.status === 'in_progress');
+            return (
+              <div key={barber.id} className="space-y-4">
+                <h2 className="text-xl font-semibold">{barber.name}</h2>
+                <Card className={inProgressWithBarber ? "border-primary" : "border-transparent shadow-none"}>
+                  {inProgressWithBarber ? (
+                    <>
+                      {/* ... In Progress Card ... */}
+                      <CardHeader>
+                        <CardTitle className="flex justify-between items-start">
+                          <span>{inProgressWithBarber.client_name}</span>
+                          <Badge variant="destructive" className="dark:text-black">In Progress</Badge>
+                        </CardTitle>
+                        <CardDescription>
+                          Services: {
+                            inProgressWithBarber.queue_entry_services && inProgressWithBarber.queue_entry_services.length > 0
+                              ? inProgressWithBarber.queue_entry_services
+                                  .map(item => item.services?.name)
+                                  .filter(Boolean)
+                                  .join(', ')
+                              : 'No services listed'
+                          }
+                        </CardDescription>
+                      </CardHeader>
+                      <CardFooter className="flex justify-end">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleUpdateStatus(inProgressWithBarber.id, 'done')}>Mark as Done</Button>
+                      </CardFooter>
+                    </>
+                  ) : (
+                    <CardContent className="pt-6">
+                      <p className="text-sm text-center text-muted-foreground">Available</p>
+                    </CardContent>
+                  )}
+                </Card>
+                <Separator />
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Badge variant="secondary">{waitingForBarber.length}</Badge>
+                    Waiting
+                  </h3>
+                  {waitingForBarber.map((entry, index) => (
+                    <Card key={entry.id}>
+                      <CardHeader className="p-4">
+                        <CardTitle className="text-base flex justify-between items-start">
+                          <span className="font-semibold">{index + 1}. {entry.client_name}</span>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditDialog(entry)}><Edit className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber}>Start</Button>
+                          </div>
+                        </CardTitle>
+                        <CardDescription className="text-xs pt-1">
+                          {
+                            entry.queue_entry_services && entry.queue_entry_services.length > 0
+                              ? entry.queue_entry_services.map(item => item.services?.name).filter(Boolean).join(', ')
+                              : 'No services listed'
+                          }
+                        </CardDescription>
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      <div className="md:col-span-2 xl:col-span-3">
-          <Card className="mt-8 bg-muted/50">
+            )
+          })}
+        </div>
+        
+        {/* Completed and No-Shows Cards remain the same */}
+        <div className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3">
+          <Card className="bg-muted/50">
             <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
             <CardContent>
-               <div className="space-y-4">{doneList.map((entry, index) => (<div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers.name}</span></p><Badge variant={entry.status === 'done' ? 'default' : 'secondary'}>{entry.status === 'done' ? 'Done' : 'No Show'}</Badge></div>))}</div>
+              {completedList.length > 0 ? (
+                <div className="space-y-4">
+                    {completedList.map((entry, index) => (
+                      <div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers.name}</span></p><Badge variant={'default'}>Done</Badge></div>
+                    ))}
+                </div>
+              ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as done yet.</p>)}
+            </CardContent>
+          </Card>
+          <Card className="bg-muted/50">
+            <CardHeader><CardTitle>No-Shows</CardTitle></CardHeader>
+            <CardContent>
+              {noShowList.length > 0 ? (
+                <div className="space-y-4">
+                  {noShowList.map((entry, index) => (
+                    <div key={entry.id} className="flex items-center justify-between text-sm">
+                      <p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers.name}</span></p>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={'secondary'}>No Show</Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteFromQueue(entry.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as a no-show.</p>)}
             </CardContent>
           </Card>
         </div>
       </div>
-    </div>
+
+      {/* --- SIMPLIFIED EDIT QUEUE ENTRY DIALOG --- */}
+      <Dialog open={isEditQueueEntryDialogOpen} onOpenChange={setIsEditQueueEntryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Queue for {editingQueueEntry?.client_name}</DialogTitle>
+            <DialogDescription>Change the assigned barber for this client.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="barber-select">Change Barber</Label>
+              <Select value={editedBarberId} onValueChange={setEditedBarberId}>
+                <SelectTrigger id="barber-select">
+                  <SelectValue placeholder="Select a barber" />
+                </SelectTrigger>
+                <SelectContent>
+                  {barbers.map(barber => (
+                    <SelectItem key={barber.id} value={barber.id}>{barber.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button onClick={handleUpdateQueueEntry}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
