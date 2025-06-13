@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-
-// Import the UI components
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,17 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 
-// Define types for our data
 type Shop = { id: string; name: string; address: string; }
 type Service = { id: string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
@@ -31,9 +20,7 @@ type QueueEntryWithBarber = {
     status: 'waiting' | 'in_progress';
     barbers: { name: string; id: string; } | null;
 };
-// Add a type for the data returned by the new RPC function
 type NewQueueEntryData = { id: string, queue_position: number, client_name: string };
-
 
 interface BookingClientProps {
   shop: Shop;
@@ -103,7 +90,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         clientId = newClient.id;
       }
 
-      // --- FIX: Call the new database function instead of two separate inserts ---
       const { data: queueData, error: rpcError } = await supabase.rpc('create_queue_entry_with_services', {
         p_shop_id: shop.id,
         p_barber_id: selectedBarber.id,
@@ -171,7 +157,8 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
                 <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue. You&apos;ll be notified when it&apos;s your turn.</p>
-                <p className="text-xs">You can check your position again at any time using the "Check Position" link.</p>
+                {/* FIX: Replaced quotes with &quot; */}
+                <p className="text-xs">You can check your position again at any time using the &quot;Check Position&quot; link.</p>
             </AlertDescription>
         </Alert>
       ) : (
@@ -206,7 +193,10 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
                   <DialogContent>
-                      <DialogHeader><DialogTitle>Check Your Position</DialogTitle><DialogDescription>Enter the name and phone number you used to join the queue.</DialogDescription></DialogHeader>
+                      <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
+                        {/* FIX: Replaced quotes with &quot; */}
+                        <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
+                      </DialogHeader>
                       <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
                       {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
                       <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button></DialogFooter>
