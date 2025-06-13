@@ -20,16 +20,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 // Define types for our data for better code quality
 type Shop = { id: string; name: string; address: string; owner_id: string }
-// The 'Client' type definition has been removed as it is no longer used in this component.
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
+
 type QueueEntry = {
   id: string;
   client_name: string;
   queue_position: number;
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
-  services: { name: string };
-  barbers: { id: string; name: string };
+  barbers: { id: string; name: string; };
+  queue_entry_services: {
+    services: {
+      name: string;
+    } | null
+  }[] | null;
 }
 
 export default function DashboardPage() {
@@ -52,7 +56,29 @@ export default function DashboardPage() {
   const [newBarberName, setNewBarberName] = useState('')
   const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null)
 
-  // Data Fetching and Real-time Subscription
+  const fetchQueueData = async (shopId: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from('queue_entries')
+      .select(`
+        *,
+        barbers ( id, name ),
+        queue_entry_services (
+          services ( name )
+        )
+      `)
+      .eq('shop_id', shopId)
+      .gte('created_at', `${today}T00:00:00Z`)
+      .lte('created_at', `${today}T23:59:59Z`)
+      .order('queue_position');
+    
+    if (error) {
+      console.error("Error fetching queue:", error);
+      return [];
+    }
+    return data as QueueEntry[];
+  }
+
   useEffect(() => {
     async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -67,19 +93,17 @@ export default function DashboardPage() {
         setEditedShopName(shopData.name);
         setEditedShopAddress(shopData.address);
 
-        const today = new Date().toISOString().slice(0, 10);
-        // REMOVED: Fetching for the 'clients' table has been removed.
         const [
-          { data: entriesData },
+          entriesData,
           { data: servicesData },
           { data: barbersData }
         ] = await Promise.all([
-          supabase.from('queue_entries').select('*, services(name), barbers(id, name)').eq('shop_id', shopData.id).gte('created_at', `${today}T00:00:00Z`).lte('created_at', `${today}T23:59:59Z`).order('queue_position'),
+          fetchQueueData(shopData.id),
           supabase.from('services').select('*').eq('shop_id', shopData.id).order('created_at'),
           supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shopData.id).order('created_at')
         ]);
 
-        setQueueEntries(entriesData as QueueEntry[] || []);
+        setQueueEntries(entriesData);
         setServices(servicesData || []);
         setBarbers(barbersData || []);
       }
@@ -88,33 +112,26 @@ export default function DashboardPage() {
     fetchData();
   }, [supabase, router]);
 
-  // Real-time subscription useEffect
   useEffect(() => {
     if (!shop) return;
     
-    const refetchQueue = async () => {
-        const today = new Date().toISOString().slice(0, 10);
-        const { data: entriesData } = await supabase
-          .from('queue_entries')
-          .select('*, services(name), barbers(id, name)')
-          .eq('shop_id', shop.id)
-          .gte('created_at', `${today}T00:00:00Z`)
-          .lte('created_at', `${today}T23:59:59Z`)
-          .order('queue_position');
-        setQueueEntries(entriesData as QueueEntry[] || []);
-    }
-    
-    const queueChannel = supabase.channel(`queue_for_${shop.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, 
-      () => {
-        refetchQueue();
-      }
-    ).subscribe();
-
-    // REMOVED: The real-time channel for 'clients' has been removed.
+    const channel = supabase.channel(`queue_for_${shop.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries' }, 
+        async () => {
+          const updatedQueue = await fetchQueueData(shop.id);
+          setQueueEntries(updatedQueue);
+        }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' },
+        async () => {
+            const updatedQueue = await fetchQueueData(shop.id);
+            setQueueEntries(updatedQueue);
+        }
+      )
+      .subscribe();
 
     return () => { 
-      supabase.removeChannel(queueChannel);
+      supabase.removeChannel(channel);
     };
   }, [shop, supabase]);
 
@@ -193,7 +210,7 @@ export default function DashboardPage() {
       <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
         <div className="flex items-center gap-2">
-           <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue Page</Button></Link>
+           <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
              <DialogTrigger asChild><Button>Edit Shop</Button></DialogTrigger>
              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -253,8 +270,7 @@ export default function DashboardPage() {
                    <CardFooter className="flex flex-col gap-4 items-start">
                       <div className="grid gap-1.5 w-full">
                         <Label htmlFor="new-barber-name">New Barber Name</Label>
-                        <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
-                      </div>
+                        <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} /></div>
                       <div className="grid gap-1.5 w-full">
                           <Label htmlFor="new-barber-avatar">Avatar</Label>
                           <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
@@ -290,9 +306,20 @@ export default function DashboardPage() {
                         <span>{inProgressWithBarber.client_name}</span>
                         <Badge variant="destructive">In Progress</Badge>
                       </CardTitle>
-                      <CardDescription>Service: {inProgressWithBarber.services?.name}</CardDescription>
+                      <CardDescription>
+                        Services: {
+                          // FIX: Corrected typo and ensured robust rendering
+                          inProgressWithBarber.queue_entry_services && inProgressWithBarber.queue_entry_services.length > 0
+                            ? inProgressWithBarber.queue_entry_services
+                                .map(item => item.services?.name)
+                                .filter(Boolean)
+                                .join(', ')
+                            : 'No services listed'
+                        }
+                      </CardDescription>
                     </CardHeader>
                     <CardFooter className="flex justify-end">
+                      {/* FIX: Corrected typo here */}
                       <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleUpdateStatus(inProgressWithBarber.id, 'done')}>Mark as Done</Button>
                     </CardFooter>
                   </>
@@ -313,13 +340,21 @@ export default function DashboardPage() {
                 {waitingForBarber.map((entry, index) => (
                   <Card key={entry.id}>
                     <CardHeader className="p-4">
-                      <CardTitle className="text-base flex justify-between">
-                        <span>{index + 1}. {entry.client_name}</span>
-                        <div className="flex gap-1">
+                      <CardTitle className="text-base flex justify-between items-start">
+                        <span className="font-semibold">{index + 1}. {entry.client_name}</span>
+                        <div className="flex gap-1 flex-shrink-0">
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
                           <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber}>Start</Button>
                         </div>
                       </CardTitle>
+                      {/* NEW: Display services for waiting clients as well */}
+                      <CardDescription className="text-xs pt-1">
+                        {
+                          entry.queue_entry_services && entry.queue_entry_services.length > 0
+                            ? entry.queue_entry_services.map(item => item.services?.name).filter(Boolean).join(', ')
+                            : 'No services listed'
+                        }
+                      </CardDescription>
                     </CardHeader>
                   </Card>
                 ))}

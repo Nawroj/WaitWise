@@ -12,10 +12,7 @@ export default function HomePage() {
           The smartest way to manage your barbershop queue. No more waiting rooms, just happy clients.
         </p>
         <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <Link href="/#">
-            {/* This button is a placeholder for a future "Browse Shops" or "Find a Barber" page.
-              For now, it demonstrates the primary customer action.
-            */}
+          <Link href="/shops">
             <Button size="lg">Join a Queue</Button>
           </Link>
           <Link href="/login">
