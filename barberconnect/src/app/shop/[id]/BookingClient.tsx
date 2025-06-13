@@ -152,12 +152,27 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       </header>
       <Separator />
 
+      {/* --- MOVED "CHECK POSITION" DIALOG HERE --- */}
+      <div className="text-center mt-6">
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
+            <DialogContent>
+                <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
+                  <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
+                {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
+                <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button></DialogFooter>
+            </DialogContent>
+        </Dialog>
+      </div>
+
+
       {queueInfo ? (
         <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
                 <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue. You&apos;ll be notified when it&apos;s your turn.</p>
-                {/* FIX: Replaced quotes with &quot; */}
                 <p className="text-xs">You can check your position again at any time using the &quot;Check Position&quot; link.</p>
             </AlertDescription>
         </Alert>
@@ -189,20 +204,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                   {loading ? 'Joining Queue...' : 'Join Queue'}
                 </Button>
             </form>
-            <div className="text-center mt-2">
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
-                  <DialogContent>
-                      <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
-                        {/* FIX: Replaced quotes with &quot; */}
-                        <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
-                      </DialogHeader>
-                      <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
-                      {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
-                      <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button></DialogFooter>
-                  </DialogContent>
-              </Dialog>
-            </div>
+            {/* --- "CHECK POSITION" DIALOG WAS REMOVED FROM HERE --- */}
         </>
       )}
     </div>

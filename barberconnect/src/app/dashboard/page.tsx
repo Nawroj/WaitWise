@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react' // Import useCallback
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Trash2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+// Types remain the same...
 type Shop = { id: string; name: string; address: string; owner_id: string }
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
@@ -47,7 +48,6 @@ export default function DashboardPage() {
   const [newBarberName, setNewBarberName] = useState('')
   const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null)
 
-  // FIX: Wrap fetchQueueData in useCallback to stabilize its reference
   const fetchQueueData = useCallback(async (shopId: string) => {
     const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
@@ -89,26 +89,69 @@ export default function DashboardPage() {
       setLoading(false);
     }
     initialFetch();
-    // FIX: Add fetchQueueData to the dependency array
   }, [supabase, router, fetchQueueData]);
 
+  // This hook for the queue is correct and remains.
   useEffect(() => {
     if (!shop) return;
     const channel = supabase.channel(`queue_for_${shop.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries' }, async () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, async () => {
         const updatedQueue = await fetchQueueData(shop.id);
         setQueueEntries(updatedQueue);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' }, async () => {
+         // This assumes service changes might affect queue display. A full queue refresh is safe.
         const updatedQueue = await fetchQueueData(shop.id);
         setQueueEntries(updatedQueue);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-    // FIX: Add fetchQueueData to the dependency array
   }, [shop, supabase, fetchQueueData]);
 
+  // NEW: Add a real-time subscription for the 'services' table.
+  useEffect(() => {
+    if (!shop) return;
+    const servicesChannel = supabase
+      .channel(`services_for_${shop.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'services', filter: `shop_id=eq.${shop.id}`}, 
+        (payload) => {
+          setServices((currentServices) => [...currentServices, payload.new as Service]);
+        }
+      )
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'services', filter: `shop_id=eq.${shop.id}`},
+        (payload) => {
+          setServices((currentServices) => currentServices.filter(s => s.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(servicesChannel); };
+  }, [shop, supabase]);
+
+  // NEW: Add a real-time subscription for the 'barbers' table.
+  useEffect(() => {
+    if (!shop) return;
+    const barbersChannel = supabase
+      .channel(`barbers_for_${shop.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'barbers', filter: `shop_id=eq.${shop.id}`},
+        (payload) => {
+          setBarbers((currentBarbers) => [...currentBarbers, payload.new as Barber]);
+        }
+      )
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'barbers', filter: `shop_id=eq.${shop.id}`},
+        (payload) => {
+          setBarbers((currentBarbers) => currentBarbers.filter(b => b.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(barbersChannel); };
+  }, [shop, supabase]);
+
+
   const doneList = useMemo(() => queueEntries.filter(e => e.status === 'done' || e.status === 'no_show'), [queueEntries]);
+  
+  // Handlers remain the same...
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
   const handleUpdateShopDetails = async () => {
@@ -119,14 +162,19 @@ export default function DashboardPage() {
   };
   const handleAddService = async () => {
     if (!shop || !newServiceName || !newServicePrice || !newServiceDuration) return;
-    const { data: newService } = await supabase.from('services').insert({ name: newServiceName, price: parseFloat(newServicePrice), duration_minutes: parseInt(newServiceDuration), shop_id: shop.id }).select().single();
-    if (newService) { setServices([...services, newService]); setNewServiceName(''); setNewServicePrice(''); setNewServiceDuration(''); }
+    // The insert will now be automatically handled by the realtime subscription.
+    const { error } = await supabase.from('services').insert({ name: newServiceName, price: parseFloat(newServicePrice), duration_minutes: parseInt(newServiceDuration), shop_id: shop.id });
+    if (!error) { 
+      setNewServiceName(''); 
+      setNewServicePrice(''); 
+      setNewServiceDuration(''); 
+    }
   };
   const handleDeleteService = async (serviceId: string) => {
     if (!confirm("Are you sure you want to delete this service?")) return;
     try {
+      // The delete will be automatically handled by the realtime subscription.
       await supabase.from('services').delete().eq('id', serviceId).throwOnError();
-      setServices(currentServices => currentServices.filter(s => s.id !== serviceId));
     } catch (error) {
       console.error("Delete service error:", error);
       alert("Could not delete service. It may be linked to historical queue entries.");
@@ -147,9 +195,9 @@ export default function DashboardPage() {
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
       avatarUrl = data.publicUrl;
     }
-    const { data: newBarber } = await supabase.from('barbers').insert({ name: newBarberName, avatar_url: avatarUrl, shop_id: shop.id }).select().single();
-    if (newBarber) { 
-      setBarbers([...barbers, newBarber]); 
+    // The insert will be automatically handled by the realtime subscription.
+    const { error } = await supabase.from('barbers').insert({ name: newBarberName, avatar_url: avatarUrl, shop_id: shop.id });
+    if (!error) { 
       setNewBarberName('');
       setNewBarberAvatarFile(null);
       const fileInput = document.getElementById('new-barber-avatar') as HTMLInputElement;
@@ -159,8 +207,8 @@ export default function DashboardPage() {
   const handleDeleteBarber = async (barberId: string) => {
     if (!confirm("Are you sure you want to delete this barber?")) return;
     try {
+      // The delete will be automatically handled by the realtime subscription.
       await supabase.from('barbers').delete().eq('id', barberId).throwOnError();
-      setBarbers(currentBarbers => currentBarbers.filter(b => b.id !== barberId));
     } catch (error) {
       console.error("Delete barber error:", error);
       alert("Could not delete barber. They may be linked to historical queue entries.");
@@ -170,8 +218,10 @@ export default function DashboardPage() {
   if (loading) { return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div> }
   if (!shop) { return <div className="p-8">Please create a shop to view the dashboard.</div> }
 
+  // The JSX for rendering remains exactly the same...
   return (
     <div className="container mx-auto p-4 md:p-8">
+      {/* ... all your JSX code from <header> to the closing </div> */}
       <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
         <div className="flex items-center gap-2">
@@ -263,7 +313,8 @@ export default function DashboardPage() {
                     <CardHeader>
                       <CardTitle className="flex justify-between items-start">
                         <span>{inProgressWithBarber.client_name}</span>
-                        <Badge variant="destructive">In Progress</Badge>
+                        <Badge variant="destructive" className="dark:text-black">In Progress</Badge>
+
                       </CardTitle>
                       <CardDescription>
                         Services: {
