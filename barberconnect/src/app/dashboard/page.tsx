@@ -15,8 +15,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Edit } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-// Types remain the same...
+
 type QueueEntry = {
   id: string;
   client_name: string;
@@ -24,7 +25,7 @@ type QueueEntry = {
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
   barbers: { id: string; name: string; };
   queue_entry_services: {
-    services: { id: string, name: string; } | null
+    services: { id: string; name: string; price: number; } | null
   }[] | null;
 }
 type Shop = { id: string; name: string; address: string; owner_id: string }
@@ -42,13 +43,9 @@ export default function DashboardPage() {
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-
-  // --- SIMPLIFIED STATE FOR EDITING QUEUE ENTRIES ---
   const [editingQueueEntry, setEditingQueueEntry] = useState<QueueEntry | null>(null);
   const [isEditQueueEntryDialogOpen, setIsEditQueueEntryDialogOpen] = useState(false);
   const [editedBarberId, setEditedBarberId] = useState('');
-  
-  // State for the main edit shop dialog
   const [editedShopName, setEditedShopName] = useState('')
   const [editedShopAddress, setEditedShopAddress] = useState('')
   const [newServiceName, setNewServiceName] = useState('')
@@ -61,7 +58,7 @@ export default function DashboardPage() {
     const today = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from('queue_entries')
-      .select(`*, barbers ( id, name ), queue_entry_services ( services ( id, name ) )`)
+      .select(`*, barbers ( id, name ), queue_entry_services ( services ( id, name, price ) )`)
       .eq('shop_id', shopId)
       .gte('created_at', `${today}T00:00:00Z`)
       .lte('created_at', `${today}T23:59:59Z`)
@@ -74,6 +71,7 @@ export default function DashboardPage() {
     return data as QueueEntry[];
   }, [supabase]);
 
+  // All useEffect hooks remain the same...
   useEffect(() => {
     async function initialFetch() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -100,7 +98,6 @@ export default function DashboardPage() {
     initialFetch();
   }, [supabase, router, fetchQueueData]);
 
-  // Realtime subscriptions remain the same...
   useEffect(() => {
     if (!shop) return;
     const channel = supabase.channel(`queue_for_${shop.id}`)
@@ -140,10 +137,39 @@ export default function DashboardPage() {
     return () => { supabase.removeChannel(barbersChannel); };
   }, [shop, supabase]);
 
-
   const completedList = useMemo(() => queueEntries.filter(e => e.status === 'done'), [queueEntries]);
   const noShowList = useMemo(() => queueEntries.filter(e => e.status === 'no_show'), [queueEntries]);
   
+  const barberClientCount = useMemo(() => {
+    const counts = barbers.reduce((acc, barber) => {
+      acc[barber.name] = 0;
+      return acc;
+    }, {} as { [key: string]: number });
+    completedList.forEach(entry => {
+      if(entry.barbers?.name) {
+        counts[entry.barbers.name] = (counts[entry.barbers.name] || 0) + 1;
+      }
+    });
+    return Object.keys(counts).map(name => ({ name, clients: counts[name] }));
+  }, [completedList, barbers]);
+
+  const barberRevenue = useMemo(() => {
+    const revenues = barbers.reduce((acc, barber) => {
+      acc[barber.name] = 0;
+      return acc;
+    }, {} as { [key: string]: number });
+    completedList.forEach(entry => {
+      if(entry.barbers?.name) {
+        const entryTotal = entry.queue_entry_services?.reduce((sum, qes) => {
+          return sum + (qes.services?.price || 0);
+        }, 0) || 0;
+        revenues[entry.barbers.name] = (revenues[entry.barbers.name] || 0) + entryTotal;
+      }
+    });
+    return Object.keys(revenues).map(name => ({ name, revenue: revenues[name] }));
+  }, [completedList, barbers]);
+
+  // All handlers remain the same...
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
   
@@ -157,14 +183,12 @@ export default function DashboardPage() {
     }
   }
 
-  // --- UPDATED HANDLER TO OPEN THE EDIT DIALOG ---
   const handleOpenEditDialog = (entry: QueueEntry) => {
     setEditingQueueEntry(entry);
     setEditedBarberId(entry.barbers.id);
     setIsEditQueueEntryDialogOpen(true);
   }
 
-  // --- SIMPLIFIED HANDLER TO UPDATE ONLY THE BARBER ---
   const handleUpdateQueueEntry = async () => {
     if (!editingQueueEntry) return;
     
@@ -177,12 +201,10 @@ export default function DashboardPage() {
       alert(`Error updating barber: ${error.message}`);
       return;
     }
-
     setIsEditQueueEntryDialogOpen(false);
     setEditingQueueEntry(null);
   }
 
-  // Other handlers remain the same...
   const handleUpdateShopDetails = async () => {
     if (!shop) return;
     const { data: updatedShop } = await supabase.from('shops').update({ name: editedShopName, address: editedShopAddress }).eq('id', shop.id).select().single();
@@ -239,6 +261,18 @@ export default function DashboardPage() {
       alert("Could not delete barber. They may be linked to historical queue entries.");
     }
   };
+
+  // --- NEW: VIBRANT & CONSISTENT COLORS ---
+  const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+
+  const barberColorMap = useMemo(() => {
+    const map: { [key: string]: string } = {};
+    barbers.forEach((barber, index) => {
+      map[barber.name] = VIBRANT_COLORS[index % VIBRANT_COLORS.length];
+    });
+    return map;
+  }, [barbers]);
+
 
   if (loading) { return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div> }
   if (!shop) { return <div className="p-8">Please create a shop to view the dashboard.</div> }
@@ -326,6 +360,7 @@ export default function DashboardPage() {
         </header>
         <Separator />
         <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+          {/* Barber columns remain the same */}
           {barbers.map(barber => {
             const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
             const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
@@ -396,7 +431,7 @@ export default function DashboardPage() {
           })}
         </div>
         
-        {/* Completed and No-Shows Cards remain the same */}
+        {/* Completed and No-Shows Cards */}
         <div className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3">
           <Card className="bg-muted/50">
             <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
@@ -429,9 +464,62 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* --- UPDATED: CHARTS SECTION --- */}
+        <div className="mt-8 xl:col-span-3">
+          <h2 className="text-2xl font-bold tracking-tight mb-4">Today&apos;s Analytics</h2>
+          <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle>Revenue per Barber</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={barberRevenue} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" tickFormatter={(value) => `$${value}`} />
+                    <YAxis type="category" dataKey="name" width={80} />
+                    <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                    <Bar dataKey="revenue" name="Total Revenue">
+                      {barberRevenue.map((entry) => (
+                        <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Clients per Barber</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                        <Pie
+                            data={barberClientCount}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={90}
+                            fill="#8884d8"
+                            paddingAngle={5}
+                            dataKey="clients"
+                            nameKey="name"
+                            label={({ name, clients }) => `${name}: ${clients}`}
+                        >
+                            {barberClientCount.map((entry) => (
+                                <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
+                            ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                    </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
       </div>
 
-      {/* --- SIMPLIFIED EDIT QUEUE ENTRY DIALOG --- */}
+      {/* Edit Queue Entry Dialog */}
       <Dialog open={isEditQueueEntryDialogOpen} onOpenChange={setIsEditQueueEntryDialogOpen}>
         <DialogContent>
           <DialogHeader>
