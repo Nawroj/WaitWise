@@ -43,7 +43,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [isChecking, setIsChecking] = useState(false);
   const [checkedPositionInfo, setCheckedPositionInfo] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+
   const totalPrice = useMemo(() => {
     return selectedServices.reduce((sum, service) => sum + service.price, 0);
   }, [selectedServices]);
@@ -83,7 +83,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     try {
       let clientId = null;
       const { data: existingClient } = await supabase.from('clients').select('id').eq('phone', clientPhone).eq('shop_id', shop.id).single();
-      if (existingClient) { clientId = existingClient.id; } 
+      if (existingClient) { clientId = existingClient.id; }
       else {
         const { data: newClient, error: newClientError } = await supabase.from('clients').insert({ name: clientName, phone: clientPhone, shop_id: shop.id }).select('id').single();
         if (newClientError) throw newClientError;
@@ -98,9 +98,9 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         p_client_phone: clientPhone,
         p_service_ids: selectedServices.map(s => s.id)
       });
-      
+
       if (rpcError) throw rpcError;
-      
+
       const newEntry = queueData as NewQueueEntryData;
 
       if (newEntry) {
@@ -113,7 +113,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             const finalPosition = position > 0 ? position : waitingQueue.length;
             setQueueInfo({ position: finalPosition, name: newEntry.client_name });
         }
-        
+
         setSelectedServices([]);
         setSelectedBarber(null);
         setClientName('');
@@ -125,21 +125,36 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       setLoading(false);
     }
   };
-  
+
   const handleCheckPosition = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkName || !checkPhone) { setCheckedPositionInfo('Please enter both your name and phone number.'); return; }
     setIsChecking(true);
     setCheckedPositionInfo(null);
-    const { data: userEntry, error: userEntryError } = await supabase.from('queue_entries').select(`id, status, barbers ( id, name )`).eq('shop_id', shop.id).eq('client_name', checkName).eq('client_phone', checkPhone).in('status', ['waiting', 'in_progress']).order('created_at', { ascending: false }).limit(1).single<QueueEntryWithBarber>();
+    const { data: userEntry, error: userEntryError } = await supabase
+      .from('queue_entries')
+      .select(`id, status, barbers ( id, name )`)
+      // Use .ilike() for case-insensitive name matching
+      .ilike('client_name', checkName)
+      .eq('client_phone', checkPhone)
+      .in('status', ['waiting', 'in_progress'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single<QueueEntryWithBarber>();
+
     if (userEntryError || !userEntry) { setCheckedPositionInfo("We couldn't find you in the current queue. Please check your details or join the queue."); setIsChecking(false); return; }
     if (userEntry.status === 'in_progress') { setCheckedPositionInfo(`You're up next! You are currently with ${userEntry.barbers?.name || 'a barber'}.`); setIsChecking(false); return; }
+
     const barberId = userEntry.barbers?.id;
     if (!barberId) { setCheckedPositionInfo("There was an error finding your barber. Please contact the shop."); setIsChecking(false); return; }
+
     const { data: waitingQueue, error: waitingQueueError } = await supabase.from('queue_entries').select('id').eq('barber_id', barberId).eq('status', 'waiting').order('queue_position', { ascending: true });
+
     if (waitingQueueError) { setCheckedPositionInfo("Could not determine your position. Please contact the shop."); setIsChecking(false); return; }
+
     const position = waitingQueue.findIndex(entry => entry.id === userEntry.id) + 1;
-    if (position > 0) { setCheckedPositionInfo(`You are number ${position} in the queue for ${userEntry.barbers?.name}.`);} 
+
+    if (position > 0) { setCheckedPositionInfo(`You are number ${position} in the queue for ${userEntry.barbers?.name}.`);}
     else { setCheckedPositionInfo("We found you, but could not determine your exact position. Please check with the shop.");}
     setIsChecking(false);
   }
@@ -152,13 +167,12 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       </header>
       <Separator />
 
-      {/* --- MOVED "CHECK POSITION" DIALOG HERE --- */}
       <div className="text-center mt-6">
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
             <DialogContent>
                 <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
-                  <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
+                  <DialogDescription>Enter the name and phone number you used to join the queue.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
                 {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
@@ -173,7 +187,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
                 <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue. You&apos;ll be notified when it&apos;s your turn.</p>
-                <p className="text-xs">You can check your position again at any time using the &quot;Check Position&quot; link.</p>
+                <p className="text-xs">You can check your position again at any time using the "Check Position" link.</p>
             </AlertDescription>
         </Alert>
       ) : (
@@ -204,7 +218,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                   {loading ? 'Joining Queue...' : 'Join Queue'}
                 </Button>
             </form>
-            {/* --- "CHECK POSITION" DIALOG WAS REMOVED FROM HERE --- */}
         </>
       )}
     </div>
