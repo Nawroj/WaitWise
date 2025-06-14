@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50 dark:bg-slate-900">
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-background text-foreground">
       <main className="text-center space-y-6">
         <h1 className="text-4xl md:text-6xl font-bold tracking-tighter">
           BarberConnect
