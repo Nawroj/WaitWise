@@ -13,7 +13,8 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Edit } from 'lucide-react'
+// --- NEW: Import RefreshCw icon ---
+import { Trash2, Edit, RefreshCw } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -23,7 +24,8 @@ type QueueEntry = {
   client_name: string;
   queue_position: number;
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
-  barbers: { id: string; name: string; };
+  // --- UPDATED: Allow barbers to be potentially null on an entry ---
+  barbers: { id: string; name: string; } | null;
   queue_entry_services: {
     services: { id: string; name: string; price: number; } | null
   }[] | null;
@@ -169,7 +171,45 @@ export default function DashboardPage() {
     return Object.keys(revenues).map(name => ({ name, revenue: revenues[name] }));
   }, [completedList, barbers]);
 
-  // All handlers remain the same...
+  // --- NEW: Re-queue Handler ---
+  const handleRequeue = async (entry: QueueEntry) => {
+    if (!entry.barbers?.id) {
+      alert("This client has no assigned barber and cannot be re-queued.");
+      return;
+    }
+    // 1. Find the lowest queue position for the barber's current waiting clients
+    const { data: waitingEntries, error: fetchError } = await supabase
+      .from('queue_entries')
+      .select('queue_position')
+      .eq('barber_id', entry.barbers.id)
+      .eq('status', 'waiting')
+      .order('queue_position', { ascending: true })
+      .limit(1);
+
+    if (fetchError) {
+      console.error("Error fetching waiting queue:", fetchError);
+      alert("Could not retrieve the current queue. Please try again.");
+      return;
+    }
+
+    // 2. Determine the new position to be at the front
+    // If others are waiting, go before the first person. Otherwise, become position 1.
+    const newPosition = waitingEntries && waitingEntries.length > 0 ? waitingEntries[0].queue_position - 1 : 1;
+
+    // 3. Update the no-show entry to the new position and 'waiting' status
+    const { error: updateError } = await supabase
+      .from('queue_entries')
+      .update({ status: 'waiting', queue_position: newPosition })
+      .eq('id', entry.id);
+
+    if (updateError) {
+      console.error("Error re-queuing client:", updateError);
+      alert("Failed to re-queue the client.");
+    }
+    // The real-time subscription will handle updating the UI
+  };
+
+
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
   
@@ -184,9 +224,13 @@ export default function DashboardPage() {
   }
 
   const handleOpenEditDialog = (entry: QueueEntry) => {
-    setEditingQueueEntry(entry);
-    setEditedBarberId(entry.barbers.id);
-    setIsEditQueueEntryDialogOpen(true);
+    if (entry.barbers) {
+      setEditingQueueEntry(entry);
+      setEditedBarberId(entry.barbers.id);
+      setIsEditQueueEntryDialogOpen(true);
+    } else {
+      alert("This entry has no barber assigned to edit.");
+    }
   }
 
   const handleUpdateQueueEntry = async () => {
@@ -262,7 +306,6 @@ export default function DashboardPage() {
     }
   };
 
-  // --- NEW: VIBRANT & CONSISTENT COLORS ---
   const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
 
   const barberColorMap = useMemo(() => {
@@ -439,7 +482,7 @@ export default function DashboardPage() {
               {completedList.length > 0 ? (
                 <div className="space-y-4">
                     {completedList.map((entry, index) => (
-                      <div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers.name}</span></p><Badge variant={'default'}>Done</Badge></div>
+                      <div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p><Badge variant={'default'}>Done</Badge></div>
                     ))}
                 </div>
               ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as done yet.</p>)}
@@ -452,10 +495,16 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   {noShowList.map((entry, index) => (
                     <div key={entry.id} className="flex items-center justify-between text-sm">
-                      <p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers.name}</span></p>
+                      <p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p>
                       <div className="flex items-center gap-2">
                         <Badge variant={'secondary'}>No Show</Badge>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteFromQueue(entry.id)}><Trash2 className="h-4 w-4" /></Button>
+                        {/* --- NEW: Re-queue Button --- */}
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Re-queue Client" onClick={() => handleRequeue(entry)}>
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Delete Entry" onClick={() => handleDeleteFromQueue(entry.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -465,7 +514,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* --- UPDATED: CHARTS SECTION --- */}
+        {/* --- CHARTS SECTION --- */}
         <div className="mt-8 xl:col-span-3">
           <h2 className="text-2xl font-bold tracking-tight mb-4">Today&apos;s Analytics</h2>
           <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
