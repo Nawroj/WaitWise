@@ -27,9 +27,7 @@ export default function LoginPage() {
       email,
       password,
       options: {
-        data: {
-          username: username,
-        },
+        data: { username },
       },
     })
 
@@ -46,10 +44,7 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError(error.message)
@@ -61,8 +56,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Card className="w-full max-w-sm mx-4">
+    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+      <Card className="w-full max-w-sm mx-4 shadow-lg border border-border bg-card text-card-foreground">
         <CardHeader>
           <CardTitle className="text-2xl font-bold">
             {isSignUp ? 'Create an Account' : 'Welcome Back'}

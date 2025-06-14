@@ -8,6 +8,10 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "BarberConnect",
   description: "The smartest way to manage your barbershop queue.",
+  icons: {
+    icon: "/favicon.svg", // Main favicon
+    apple: "/favicon.svg", // Apple touch icon
+  },
 };
 
 export default function RootLayout({
