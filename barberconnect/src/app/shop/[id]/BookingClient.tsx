@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 
 type Shop = { id: string; name: string; address: string; }
 type Service = { id: string; name: string; price: number; duration_minutes: number }
-type Barber = { id: string; name: string; avatar_url: string | null }
+type Barber = { id: string; name:string; avatar_url: string | null }
 type QueueEntryWithBarber = {
     id: string;
     status: 'waiting' | 'in_progress';
@@ -43,6 +43,15 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [isChecking, setIsChecking] = useState(false);
   const [checkedPositionInfo, setCheckedPositionInfo] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // --- NEW: Phone number validation function ---
+  const isValidAustralianPhone = (phone: string) => {
+    // Regex for 10-digit Australian mobile or landline numbers.
+    const phoneRegex = /^(04|02|03|07|08)\d{8}$/;
+    // Remove all whitespace from the input before testing.
+    const cleanedPhone = phone.replace(/\s/g, '');
+    return phoneRegex.test(cleanedPhone);
+  };
 
   const totalPrice = useMemo(() => {
     return selectedServices.reduce((sum, service) => sum + service.price, 0);
@@ -78,6 +87,13 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       alert('Please select at least one service, a barber, and enter your details.');
       return;
     }
+
+    // --- NEW: Add phone number validation before submission ---
+    if (!isValidAustralianPhone(clientPhone)) {
+      alert('Please enter a valid 10-digit Australian mobile or landline number.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -128,14 +144,24 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
   const handleCheckPosition = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!checkName || !checkPhone) { setCheckedPositionInfo('Please enter both your name and phone number.'); return; }
+    if (!checkName || !checkPhone) { 
+        setCheckedPositionInfo('Please enter both your name and phone number.'); 
+        return; 
+    }
+    
+    // --- NEW: Add phone number validation for checking status ---
+    if (!isValidAustralianPhone(checkPhone)) {
+        setCheckedPositionInfo('Please enter a valid 10-digit Australian phone number to check your status.');
+        return;
+    }
+
     setIsChecking(true);
     setCheckedPositionInfo(null);
     const { data: userEntry, error: userEntryError } = await supabase
       .from('queue_entries')
       .select(`id, status, barbers ( id, name )`)
       .ilike('client_name', checkName)
-      .eq('client_phone', checkPhone)
+      .eq('client_phone', checkPhone.replace(/\s/g, '')) // Also use cleaned phone for lookup
       .in('status', ['waiting', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(1)
@@ -171,10 +197,19 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
             <DialogContent>
                 <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
-                  {/* --- FIXED: Replaced " with &quot; --- */}
                   <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
+                <form onSubmit={handleCheckPosition} className="space-y-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="check-name">Your Name</Label>
+                        <Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="check-phone">Your Phone</Label>
+                        <Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button>
+                </form>
                 {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
                 <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button></DialogFooter>
             </DialogContent>
@@ -187,7 +222,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
                 <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue. You&apos;ll be notified when it&apos;s your turn.</p>
-                {/* --- FIXED: Replaced " with &quot; --- */}
                 <p className="text-xs">You can check your position again at any time using the &quot;Check Position&quot; link.</p>
             </AlertDescription>
         </Alert>
@@ -213,7 +247,16 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                 </div>
                 <div className="space-y-4 pt-4">
                   <h2 className="text-xl font-semibold">3. Your Details</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div className="grid gap-2"><Label htmlFor="client-name">Your Name</Label><Input id="client-name" placeholder="e.g., Jane Doe" value={clientName} onChange={e => setClientName(e.target.value)} required /></div><div className="grid gap-2"><Label htmlFor="client-phone">Your Phone</Label><Input id="client-phone" type="tel" placeholder="e.g., 0412 345 678" value={clientPhone} onChange={e => setClientPhone(e.target.value)} required /></div></div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                          <Label htmlFor="client-name">Your Name</Label>
+                          <Input id="client-name" placeholder="e.g., Jane Doe" value={clientName} onChange={e => setClientName(e.target.value)} required />
+                      </div>
+                      <div className="grid gap-2">
+                          <Label htmlFor="client-phone">Your Phone</Label>
+                          <Input id="client-phone" type="tel" placeholder="e.g., 0412 345 678" value={clientPhone} onChange={e => setClientPhone(e.target.value)} required />
+                      </div>
+                  </div>
                 </div>
                 <Button type="submit" size="lg" className="w-full" disabled={loading}>
                   {loading ? 'Joining Queue...' : 'Join Queue'}
