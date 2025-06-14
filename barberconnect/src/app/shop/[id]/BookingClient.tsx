@@ -134,7 +134,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     const { data: userEntry, error: userEntryError } = await supabase
       .from('queue_entries')
       .select(`id, status, barbers ( id, name )`)
-      // Use .ilike() for case-insensitive name matching
       .ilike('client_name', checkName)
       .eq('client_phone', checkPhone)
       .in('status', ['waiting', 'in_progress'])
@@ -172,7 +171,8 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
             <DialogContent>
                 <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
-                  <DialogDescription>Enter the name and phone number you used to join the queue.</DialogDescription>
+                  {/* --- FIXED: Replaced " with &quot; --- */}
+                  <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
                 {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
@@ -187,7 +187,8 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
                 <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue. You&apos;ll be notified when it&apos;s your turn.</p>
-                <p className="text-xs">You can check your position again at any time using the "Check Position" link.</p>
+                {/* --- FIXED: Replaced " with &quot; --- */}
+                <p className="text-xs">You can check your position again at any time using the &quot;Check Position&quot; link.</p>
             </AlertDescription>
         </Alert>
       ) : (
