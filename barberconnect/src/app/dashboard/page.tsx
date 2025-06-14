@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+// --- FIXED: Removed unused 'useRef' import ---
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+// --- NEW: Import Next.js Image component ---
+import Image from 'next/image'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -170,6 +173,16 @@ export default function DashboardPage() {
     return Object.keys(revenues).map(name => ({ name, revenue: revenues[name] }));
   }, [completedList, barbers]);
 
+  // --- FIXED: Moved constant into useMemo to satisfy exhaustive-deps ---
+  const barberColorMap = useMemo(() => {
+    const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+    const map: { [key: string]: string } = {};
+    barbers.forEach((barber, index) => {
+      map[barber.name] = VIBRANT_COLORS[index % VIBRANT_COLORS.length];
+    });
+    return map;
+  }, [barbers]);
+
   const handleRequeue = async (entry: QueueEntry) => {
     if (!entry.barbers?.id) {
       alert("This client has no assigned barber and cannot be re-queued.");
@@ -301,7 +314,6 @@ export default function DashboardPage() {
     if (!shop) return;
     const url = `${window.location.origin}/shop/${shop.id}`;
     try {
-      // --- FIXED: Removed the 'quality' property as it is not valid for PNG type ---
       const options = {
         errorCorrectionLevel: 'H' as const,
         type: 'image/png' as const,
@@ -318,17 +330,6 @@ export default function DashboardPage() {
       alert('Could not generate QR code. Please try again.');
     }
   };
-
-  const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-
-  const barberColorMap = useMemo(() => {
-    const map: { [key: string]: string } = {};
-    barbers.forEach((barber, index) => {
-      map[barber.name] = VIBRANT_COLORS[index % VIBRANT_COLORS.length];
-    });
-    return map;
-  }, [barbers]);
-
 
   if (loading) { return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div> }
   if (!shop) { return <div className="p-8">Please create a shop to view the dashboard.</div> }
@@ -366,7 +367,8 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent className="flex flex-col items-center justify-center gap-4">
                         {qrCodeDataUrl ? (
-                            <img src={qrCodeDataUrl} alt="Shop QR Code" className="w-48 h-48 border rounded-lg" />
+                            // --- FIXED: Replaced <img> with Next.js <Image> component ---
+                            <Image src={qrCodeDataUrl} alt="Shop QR Code" width={192} height={192} className="border rounded-lg" />
                         ) : (
                             <div className="w-48 h-48 border rounded-lg bg-muted flex items-center justify-center">
                                 <p className="text-sm text-muted-foreground">Click to generate</p>
