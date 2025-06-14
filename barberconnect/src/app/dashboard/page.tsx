@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
@@ -13,10 +13,10 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// --- NEW: Import RefreshCw icon ---
-import { Trash2, Edit, RefreshCw } from 'lucide-react'
+import { Trash2, Edit, RefreshCw, QrCode } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import QRCode from 'qrcode';
 
 
 type QueueEntry = {
@@ -24,7 +24,6 @@ type QueueEntry = {
   client_name: string;
   queue_position: number;
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
-  // --- UPDATED: Allow barbers to be potentially null on an entry ---
   barbers: { id: string; name: string; } | null;
   queue_entry_services: {
     services: { id: string; name: string; price: number; } | null
@@ -55,6 +54,7 @@ export default function DashboardPage() {
   const [newServiceDuration, setNewServiceDuration] = useState('')
   const [newBarberName, setNewBarberName] = useState('')
   const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
 
   const fetchQueueData = useCallback(async (shopId: string) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -73,7 +73,6 @@ export default function DashboardPage() {
     return data as QueueEntry[];
   }, [supabase]);
 
-  // All useEffect hooks remain the same...
   useEffect(() => {
     async function initialFetch() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -171,13 +170,11 @@ export default function DashboardPage() {
     return Object.keys(revenues).map(name => ({ name, revenue: revenues[name] }));
   }, [completedList, barbers]);
 
-  // --- NEW: Re-queue Handler ---
   const handleRequeue = async (entry: QueueEntry) => {
     if (!entry.barbers?.id) {
       alert("This client has no assigned barber and cannot be re-queued.");
       return;
     }
-    // 1. Find the lowest queue position for the barber's current waiting clients
     const { data: waitingEntries, error: fetchError } = await supabase
       .from('queue_entries')
       .select('queue_position')
@@ -191,12 +188,7 @@ export default function DashboardPage() {
       alert("Could not retrieve the current queue. Please try again.");
       return;
     }
-
-    // 2. Determine the new position to be at the front
-    // If others are waiting, go before the first person. Otherwise, become position 1.
     const newPosition = waitingEntries && waitingEntries.length > 0 ? waitingEntries[0].queue_position - 1 : 1;
-
-    // 3. Update the no-show entry to the new position and 'waiting' status
     const { error: updateError } = await supabase
       .from('queue_entries')
       .update({ status: 'waiting', queue_position: newPosition })
@@ -206,7 +198,6 @@ export default function DashboardPage() {
       console.error("Error re-queuing client:", updateError);
       alert("Failed to re-queue the client.");
     }
-    // The real-time subscription will handle updating the UI
   };
 
 
@@ -305,6 +296,28 @@ export default function DashboardPage() {
       alert("Could not delete barber. They may be linked to historical queue entries.");
     }
   };
+  
+  const generateQRCode = async () => {
+    if (!shop) return;
+    const url = `${window.location.origin}/shop/${shop.id}`;
+    try {
+      // --- FIXED: Removed the 'quality' property as it is not valid for PNG type ---
+      const options = {
+        errorCorrectionLevel: 'H' as const,
+        type: 'image/png' as const,
+        margin: 1,
+        color: {
+          dark:"#000000",
+          light:"#FFFFFF"
+        }
+      };
+      const dataUrl = await QRCode.toDataURL(url, options);
+      setQrCodeDataUrl(dataUrl);
+    } catch (err) {
+      console.error('Failed to generate QR code', err);
+      alert('Could not generate QR code. Please try again.');
+    }
+  };
 
   const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
 
@@ -323,7 +336,6 @@ export default function DashboardPage() {
   return (
     <>
       <div className="container mx-auto p-4 md:p-8">
-        {/* Header and main Edit Shop dialog remain the same */}
         <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
           <div className="flex items-center gap-2">
@@ -331,10 +343,9 @@ export default function DashboardPage() {
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
               <DialogTrigger asChild><Button>Edit Shop</Button></DialogTrigger>
               <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                 {/* ... Edit shop cards ... */}
                  <DialogHeader>
                  <DialogTitle>Edit {editedShopName}</DialogTitle>
-                 <DialogDescription>Update your shop details, services, and barbers here.</DialogDescription>
+                 <DialogDescription>Update your shop details, services, barbers, and get your QR code here.</DialogDescription>
                </DialogHeader>
                <div className="grid gap-6 py-4">
                  <Card>
@@ -345,6 +356,36 @@ export default function DashboardPage() {
                    </CardContent>
                    <CardFooter><Button onClick={handleUpdateShopDetails}>Save Shop Details</Button></CardFooter>
                  </Card>
+
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Shop QR Code</CardTitle>
+                        <CardDescription>
+                            Customers can scan this code to go directly to your booking page.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col items-center justify-center gap-4">
+                        {qrCodeDataUrl ? (
+                            <img src={qrCodeDataUrl} alt="Shop QR Code" className="w-48 h-48 border rounded-lg" />
+                        ) : (
+                            <div className="w-48 h-48 border rounded-lg bg-muted flex items-center justify-center">
+                                <p className="text-sm text-muted-foreground">Click to generate</p>
+                            </div>
+                        )}
+                        <div className="flex gap-2">
+                             <Button onClick={generateQRCode} variant="outline">
+                                <QrCode className="mr-2 h-4 w-4" />
+                                {qrCodeDataUrl ? 'Regenerate' : 'Generate'} QR Code
+                            </Button>
+                            {qrCodeDataUrl && (
+                                <a href={qrCodeDataUrl} download={`${editedShopName}-QRCode.png`}>
+                                    <Button>Download</Button>
+                                </a>
+                            )}
+                        </div>
+                    </CardContent>
+                 </Card>
+                 
                  <Card>
                    <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
                    <CardContent>
@@ -403,7 +444,6 @@ export default function DashboardPage() {
         </header>
         <Separator />
         <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-          {/* Barber columns remain the same */}
           {barbers.map(barber => {
             const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
             const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
@@ -414,7 +454,6 @@ export default function DashboardPage() {
                 <Card className={inProgressWithBarber ? "border-primary" : "border-transparent shadow-none"}>
                   {inProgressWithBarber ? (
                     <>
-                      {/* ... In Progress Card ... */}
                       <CardHeader>
                         <CardTitle className="flex justify-between items-start">
                           <span>{inProgressWithBarber.client_name}</span>
@@ -474,7 +513,6 @@ export default function DashboardPage() {
           })}
         </div>
         
-        {/* Completed and No-Shows Cards */}
         <div className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3">
           <Card className="bg-muted/50">
             <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
@@ -498,7 +536,6 @@ export default function DashboardPage() {
                       <p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p>
                       <div className="flex items-center gap-2">
                         <Badge variant={'secondary'}>No Show</Badge>
-                        {/* --- NEW: Re-queue Button --- */}
                         <Button variant="ghost" size="icon" className="h-7 w-7" title="Re-queue Client" onClick={() => handleRequeue(entry)}>
                           <RefreshCw className="h-4 w-4" />
                         </Button>
@@ -514,7 +551,6 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* --- CHARTS SECTION --- */}
         <div className="mt-8 xl:col-span-3">
           <h2 className="text-2xl font-bold tracking-tight mb-4">Today&apos;s Analytics</h2>
           <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
@@ -568,7 +604,6 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* Edit Queue Entry Dialog */}
       <Dialog open={isEditQueueEntryDialogOpen} onOpenChange={setIsEditQueueEntryDialogOpen}>
         <DialogContent>
           <DialogHeader>
