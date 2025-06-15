@@ -1,11 +1,9 @@
 'use client'
 
-// --- FIXED: Removed unused 'useRef' import ---
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-// --- NEW: Import Next.js Image component ---
 import Image from 'next/image'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,7 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Edit, RefreshCw, QrCode } from 'lucide-react'
+import { Trash2, Edit, RefreshCw, QrCode, CreditCard } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QRCode from 'qrcode';
@@ -32,7 +30,14 @@ type QueueEntry = {
     services: { id: string; name: string; price: number; } | null
   }[] | null;
 }
-type Shop = { id: string; name: string; address: string; owner_id: string }
+type Shop = {
+  id: string;
+  name: string;
+  address: string;
+  owner_id: string;
+  subscription_status: 'trial' | 'active' | 'past_due' | null;
+  stripe_customer_id: string | null;
+}
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
 
@@ -47,6 +52,8 @@ export default function DashboardPage() {
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  // --- NEW: State for the separate billing dialog ---
+  const [isBillingDialogOpen, setIsBillingDialogOpen] = useState(false)
   const [editingQueueEntry, setEditingQueueEntry] = useState<QueueEntry | null>(null);
   const [isEditQueueEntryDialogOpen, setIsEditQueueEntryDialogOpen] = useState(false);
   const [editedBarberId, setEditedBarberId] = useState('');
@@ -58,6 +65,7 @@ export default function DashboardPage() {
   const [newBarberName, setNewBarberName] = useState('')
   const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [billableEventsCount, setBillableEventsCount] = useState(0);
 
   const fetchQueueData = useCallback(async (shopId: string) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -75,6 +83,24 @@ export default function DashboardPage() {
     }
     return data as QueueEntry[];
   }, [supabase]);
+
+  useEffect(() => {
+    if (!shop) return;
+    const fetchBillableCount = async () => {
+      const { count, error } = await supabase
+        .from('billable_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('shop_id', shop.id);
+
+      if (error) {
+        console.error("Error fetching billable events count:", error);
+      } else {
+        setBillableEventsCount(count || 0);
+      }
+    };
+    fetchBillableCount();
+  }, [shop, supabase]);
+
 
   useEffect(() => {
     async function initialFetch() {
@@ -112,6 +138,9 @@ export default function DashboardPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' }, async () => {
         const updatedQueue = await fetchQueueData(shop.id);
         setQueueEntries(updatedQueue);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, (payload) => {
+        setBillableEventsCount(currentCount => currentCount + 1);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -173,7 +202,6 @@ export default function DashboardPage() {
     return Object.keys(revenues).map(name => ({ name, revenue: revenues[name] }));
   }, [completedList, barbers]);
 
-  // --- FIXED: Moved constant into useMemo to satisfy exhaustive-deps ---
   const barberColorMap = useMemo(() => {
     const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
     const map: { [key: string]: string } = {};
@@ -213,8 +241,20 @@ export default function DashboardPage() {
     }
   };
 
+  const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => {
+    if (newStatus === 'done' && shop) {
+      const { error: billableError } = await supabase
+        .from('billable_events')
+        .insert({ shop_id: shop.id, queue_entry_id: id });
 
-  const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => { await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id); };
+      if (billableError) {
+        console.error("Could not create billable event:", billableError);
+        alert("Warning: Could not log this event for billing. Please contact support.");
+      }
+    }
+    await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id);
+  };
+
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
   
   const handleDeleteFromQueue = async (id: string) => {
@@ -331,8 +371,15 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCreatePortal = async () => {
+      alert("This will redirect to the Stripe customer portal.");
+  };
+
   if (loading) { return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div> }
   if (!shop) { return <div className="p-8">Please create a shop to view the dashboard.</div> }
+
+  const isTrial = shop.subscription_status === 'trial' || shop.subscription_status === null;
+  const trialUsages = 100 - billableEventsCount;
 
   return (
     <>
@@ -341,6 +388,36 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
           <div className="flex items-center gap-2">
             <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
+            
+            {/* --- NEW: Separate Billing Button --- */}
+            <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">Billing & Subscription</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Billing & Subscription</DialogTitle>
+                  <DialogDescription>
+                    Manage your subscription and view usage.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">Current Plan</p>
+                      <p className="text-2xl font-bold capitalize">{shop.subscription_status || 'Trial'}</p>
+                    </div>
+                    <Button onClick={handleCreatePortal}>
+                      <CreditCard className="mr-2 h-4 w-4"/> Manage Billing
+                    </Button>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
               <DialogTrigger asChild><Button>Edit Shop</Button></DialogTrigger>
               <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -367,7 +444,6 @@ export default function DashboardPage() {
                     </CardHeader>
                     <CardContent className="flex flex-col items-center justify-center gap-4">
                         {qrCodeDataUrl ? (
-                            // --- FIXED: Replaced <img> with Next.js <Image> component ---
                             <Image src={qrCodeDataUrl} alt="Shop QR Code" width={192} height={192} className="border rounded-lg" />
                         ) : (
                             <div className="w-48 h-48 border rounded-lg bg-muted flex items-center justify-center">
@@ -444,7 +520,29 @@ export default function DashboardPage() {
             <Button variant="ghost" size="sm" onClick={handleLogout}>Logout</Button>
           </div>
         </header>
+
+        <Card className="mb-6">
+            <CardHeader>
+                <CardTitle>Usage This Month</CardTitle>
+            </CardHeader>
+            <CardContent>
+                {isTrial ? (
+                    <div>
+                        <p className="text-2xl font-bold">{trialUsages > 0 ? trialUsages : 0}</p>
+                        <p className="text-sm text-muted-foreground">free trial usages remaining.</p>
+                        {trialUsages <= 0 && <p className="text-sm text-red-500 mt-2">You have used all your free trial clients! Please upgrade to continue.</p>}
+                    </div>
+                ) : (
+                    <div>
+                        <p className="text-2xl font-bold">{billableEventsCount}</p>
+                        <p className="text-sm text-muted-foreground">billable clients this month.</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+
         <Separator />
+
         <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {barbers.map(barber => {
             const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
@@ -496,7 +594,7 @@ export default function DashboardPage() {
                           <div className="flex gap-1 flex-shrink-0">
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditDialog(entry)}><Edit className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
-                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber}>Start</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber || (isTrial && trialUsages <= 0)}>Start</Button>
                           </div>
                         </CardTitle>
                         <CardDescription className="text-xs pt-1">
@@ -636,3 +734,4 @@ export default function DashboardPage() {
     </>
   )
 }
+
