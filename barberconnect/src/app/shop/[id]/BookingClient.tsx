@@ -43,12 +43,11 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [isChecking, setIsChecking] = useState(false);
   const [checkedPositionInfo, setCheckedPositionInfo] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  // --- NEW: State to disable button after submission ---
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- NEW: Phone number validation function ---
   const isValidAustralianPhone = (phone: string) => {
-    // Regex for 10-digit Australian mobile or landline numbers.
     const phoneRegex = /^(04|02|03|07|08)\d{8}$/;
-    // Remove all whitespace from the input before testing.
     const cleanedPhone = phone.replace(/\s/g, '');
     return phoneRegex.test(cleanedPhone);
   };
@@ -83,18 +82,22 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // --- NEW: Prevent multiple submissions ---
+    if (isSubmitting) return;
+
     if (selectedServices.length === 0 || !selectedBarber || !clientName || !clientPhone) {
       alert('Please select at least one service, a barber, and enter your details.');
       return;
     }
 
-    // --- NEW: Add phone number validation before submission ---
     if (!isValidAustralianPhone(clientPhone)) {
       alert('Please enter a valid 10-digit Australian mobile or landline number.');
       return;
     }
 
     setLoading(true);
+    setIsSubmitting(true); // Disable the button immediately
 
     try {
       let clientId = null;
@@ -139,6 +142,8 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       alert(`Error joining queue: ${error instanceof Error ? error.message : 'An unknown error occurred.'}`);
     } finally {
       setLoading(false);
+      // --- NEW: Re-enable the button after a 5-second cooldown ---
+      setTimeout(() => setIsSubmitting(false), 5000);
     }
   };
 
@@ -149,7 +154,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         return; 
     }
     
-    // --- NEW: Add phone number validation for checking status ---
     if (!isValidAustralianPhone(checkPhone)) {
         setCheckedPositionInfo('Please enter a valid 10-digit Australian phone number to check your status.');
         return;
@@ -161,7 +165,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       .from('queue_entries')
       .select(`id, status, barbers ( id, name )`)
       .ilike('client_name', checkName)
-      .eq('client_phone', checkPhone.replace(/\s/g, '')) // Also use cleaned phone for lookup
+      .eq('client_phone', checkPhone.replace(/\s/g, ''))
       .in('status', ['waiting', 'in_progress'])
       .order('created_at', { ascending: false })
       .limit(1)
@@ -258,8 +262,9 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                       </div>
                   </div>
                 </div>
-                <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                  {loading ? 'Joining Queue...' : 'Join Queue'}
+                {/* --- UPDATED: Button is now also disabled by the isSubmitting state --- */}
+                <Button type="submit" size="lg" className="w-full" disabled={loading || isSubmitting}>
+                  {isSubmitting ? 'Joining...' : 'Join Queue'}
                 </Button>
             </form>
         </>
