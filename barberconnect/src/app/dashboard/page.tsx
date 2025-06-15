@@ -52,7 +52,6 @@ export default function DashboardPage() {
   const [services, setServices] = useState<Service[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  // --- NEW: State for the separate billing dialog ---
   const [isBillingDialogOpen, setIsBillingDialogOpen] = useState(false)
   const [editingQueueEntry, setEditingQueueEntry] = useState<QueueEntry | null>(null);
   const [isEditQueueEntryDialogOpen, setIsEditQueueEntryDialogOpen] = useState(false);
@@ -87,10 +86,14 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!shop) return;
     const fetchBillableCount = async () => {
+      const today = new Date();
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+      
       const { count, error } = await supabase
         .from('billable_events')
         .select('*', { count: 'exact', head: true })
-        .eq('shop_id', shop.id);
+        .eq('shop_id', shop.id)
+        .gte('created_at', firstDayOfMonth);
 
       if (error) {
         console.error("Error fetching billable events count:", error);
@@ -139,7 +142,8 @@ export default function DashboardPage() {
         const updatedQueue = await fetchQueueData(shop.id);
         setQueueEntries(updatedQueue);
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, (payload) => {
+      // --- FIXED: Removed the unused 'payload' variable to prevent compilation error ---
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, () => {
         setBillableEventsCount(currentCount => currentCount + 1);
       })
       .subscribe();
@@ -372,7 +376,16 @@ export default function DashboardPage() {
   };
 
   const handleCreatePortal = async () => {
-      alert("This will redirect to the Stripe customer portal.");
+    if (!shop) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('create-stripe-portal', {
+        body: { shop_id: shop.id },
+      });
+      if (error) throw error;
+      window.location.href = data.url;
+    } catch (error) {
+      alert(`Error creating billing portal: ${error.message}`);
+    }
   };
 
   if (loading) { return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div> }
@@ -389,7 +402,6 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
             
-            {/* --- NEW: Separate Billing Button --- */}
             <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">Billing & Subscription</Button>
@@ -734,4 +746,3 @@ export default function DashboardPage() {
     </>
   )
 }
-
