@@ -142,7 +142,6 @@ export default function DashboardPage() {
         const updatedQueue = await fetchQueueData(shop.id);
         setQueueEntries(updatedQueue);
       })
-      // --- FIXED: Removed the unused 'payload' variable to prevent compilation error ---
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, () => {
         setBillableEventsCount(currentCount => currentCount + 1);
       })
@@ -384,7 +383,12 @@ export default function DashboardPage() {
       if (error) throw error;
       window.location.href = data.url;
     } catch (error) {
-      alert(`Error creating billing portal: ${error.message}`);
+      // --- FIXED: Safely handle unknown error type ---
+      if (error instanceof Error) {
+        alert(`Error creating billing portal: ${error.message}`);
+      } else {
+        alert('An unknown error occurred while creating the billing portal.');
+      }
     }
   };
 
