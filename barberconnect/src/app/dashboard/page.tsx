@@ -25,11 +25,13 @@ type QueueEntry = {
   client_name: string;
   queue_position: number;
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
+  created_at: string; 
   barbers: { id: string; name: string; } | null;
   queue_entry_services: {
     services: { id: string; name: string; price: number; } | null
   }[] | null;
 }
+// --- NEW: Updated Shop type to include opening/closing times ---
 type Shop = {
   id: string;
   name: string;
@@ -37,6 +39,8 @@ type Shop = {
   owner_id: string;
   subscription_status: 'trial' | 'active' | 'past_due' | null;
   stripe_customer_id: string | null;
+  opening_time: string | null;
+  closing_time: string | null;
 }
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
@@ -58,6 +62,9 @@ export default function DashboardPage() {
   const [editedBarberId, setEditedBarberId] = useState('');
   const [editedShopName, setEditedShopName] = useState('')
   const [editedShopAddress, setEditedShopAddress] = useState('')
+  // --- NEW: State for opening/closing time editors ---
+  const [editedOpeningTime, setEditedOpeningTime] = useState('');
+  const [editedClosingTime, setEditedClosingTime] = useState('');
   const [newServiceName, setNewServiceName] = useState('')
   const [newServicePrice, setNewServicePrice] = useState('')
   const [newServiceDuration, setNewServiceDuration] = useState('')
@@ -65,15 +72,27 @@ export default function DashboardPage() {
   const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [billableEventsCount, setBillableEventsCount] = useState(0);
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
+  const [showAllNoShows, setShowAllNoShows] = useState(false);
 
-  const fetchQueueData = useCallback(async (shopId: string) => {
+  // --- NEW: Updated fetch function to filter by shop hours ---
+  const fetchQueueData = useCallback(async (shop: Shop) => {
+    if (!shop.opening_time || !shop.closing_time) {
+        // If times aren't set, don't fetch any data
+        console.log("Shop opening/closing times are not set.");
+        return [];
+    }
     const today = new Date().toISOString().slice(0, 10);
+    // Construct start and end timestamps for today based on shop's local time
+    const startTime = `${today}T${shop.opening_time}`;
+    const endTime = `${today}T${shop.closing_time}`;
+
     const { data, error } = await supabase
       .from('queue_entries')
       .select(`*, barbers ( id, name ), queue_entry_services ( services ( id, name, price ) )`)
-      .eq('shop_id', shopId)
-      .gte('created_at', `${today}T00:00:00Z`)
-      .lte('created_at', `${today}T23:59:59Z`)
+      .eq('shop_id', shop.id)
+      .gte('created_at', startTime)
+      .lte('created_at', endTime)
       .order('queue_position');
     
     if (error) {
@@ -104,7 +123,6 @@ export default function DashboardPage() {
     fetchBillableCount();
   }, [shop, supabase]);
 
-
   useEffect(() => {
     async function initialFetch() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -117,8 +135,12 @@ export default function DashboardPage() {
         setShop(shopData);
         setEditedShopName(shopData.name);
         setEditedShopAddress(shopData.address);
+        // --- NEW: Set initial values for time editors ---
+        setEditedOpeningTime(shopData.opening_time || '09:00');
+        setEditedClosingTime(shopData.closing_time || '17:00');
+        
         const [entriesData, { data: servicesData }, { data: barbersData }] = await Promise.all([
-          fetchQueueData(shopData.id),
+          fetchQueueData(shopData),
           supabase.from('services').select('*').eq('shop_id', shopData.id).order('created_at'),
           supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shopData.id).order('created_at')
         ]);
@@ -135,11 +157,11 @@ export default function DashboardPage() {
     if (!shop) return;
     const channel = supabase.channel(`queue_for_${shop.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, async () => {
-        const updatedQueue = await fetchQueueData(shop.id);
+        const updatedQueue = await fetchQueueData(shop);
         setQueueEntries(updatedQueue);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' }, async () => {
-        const updatedQueue = await fetchQueueData(shop.id);
+        const updatedQueue = await fetchQueueData(shop);
         setQueueEntries(updatedQueue);
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, () => {
@@ -173,28 +195,31 @@ export default function DashboardPage() {
     return () => { supabase.removeChannel(barbersChannel); };
   }, [shop, supabase]);
 
-  const completedList = useMemo(() => queueEntries.filter(e => e.status === 'done'), [queueEntries]);
-  const noShowList = useMemo(() => queueEntries.filter(e => e.status === 'no_show'), [queueEntries]);
+  const fullCompletedList = useMemo(() => queueEntries.filter(e => e.status === 'done').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [queueEntries]);
+  const fullNoShowList = useMemo(() => queueEntries.filter(e => e.status === 'no_show').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [queueEntries]);
+  
+  const visibleCompletedList = useMemo(() => showAllCompleted ? fullCompletedList : fullCompletedList.slice(0, 5), [fullCompletedList, showAllCompleted]);
+  const visibleNoShowList = useMemo(() => showAllNoShows ? fullNoShowList : fullNoShowList.slice(0, 5), [fullNoShowList, showAllNoShows]);
   
   const barberClientCount = useMemo(() => {
     const counts = barbers.reduce((acc, barber) => {
       acc[barber.name] = 0;
       return acc;
     }, {} as { [key: string]: number });
-    completedList.forEach(entry => {
+    fullCompletedList.forEach(entry => {
       if(entry.barbers?.name) {
         counts[entry.barbers.name] = (counts[entry.barbers.name] || 0) + 1;
       }
     });
     return Object.keys(counts).map(name => ({ name, clients: counts[name] }));
-  }, [completedList, barbers]);
+  }, [fullCompletedList, barbers]);
 
   const barberRevenue = useMemo(() => {
     const revenues = barbers.reduce((acc, barber) => {
       acc[barber.name] = 0;
       return acc;
     }, {} as { [key: string]: number });
-    completedList.forEach(entry => {
+    fullCompletedList.forEach(entry => {
       if(entry.barbers?.name) {
         const entryTotal = entry.queue_entry_services?.reduce((sum, qes) => {
           return sum + (qes.services?.price || 0);
@@ -203,7 +228,7 @@ export default function DashboardPage() {
       }
     });
     return Object.keys(revenues).map(name => ({ name, revenue: revenues[name] }));
-  }, [completedList, barbers]);
+  }, [fullCompletedList, barbers]);
 
   const barberColorMap = useMemo(() => {
     const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
@@ -296,9 +321,25 @@ export default function DashboardPage() {
     setEditingQueueEntry(null);
   }
 
+  // --- NEW: Updated handler to save opening/closing times ---
   const handleUpdateShopDetails = async () => {
     if (!shop) return;
-    const { data: updatedShop } = await supabase.from('shops').update({ name: editedShopName, address: editedShopAddress }).eq('id', shop.id).select().single();
+    const { data: updatedShop, error } = await supabase
+      .from('shops')
+      .update({ 
+          name: editedShopName, 
+          address: editedShopAddress,
+          opening_time: editedOpeningTime,
+          closing_time: editedClosingTime
+      })
+      .eq('id', shop.id)
+      .select()
+      .single();
+
+    if (error) {
+      alert(`Failed to update shop details: ${error.message}`);
+      return;
+    }
     if (updatedShop) setShop(updatedShop);
     alert("Shop details updated!");
   };
@@ -383,7 +424,6 @@ export default function DashboardPage() {
       if (error) throw error;
       window.location.href = data.url;
     } catch (error) {
-      // --- FIXED: Safely handle unknown error type ---
       if (error instanceof Error) {
         alert(`Error creating billing portal: ${error.message}`);
       } else {
@@ -447,6 +487,17 @@ export default function DashboardPage() {
                    <CardContent className="grid gap-4">
                       <div className="grid gap-2"><Label htmlFor="name">Shop Name</Label><Input id="name" value={editedShopName} onChange={(e) => setEditedShopName(e.target.value)} /></div>
                       <div className="grid gap-2"><Label htmlFor="address">Shop Address</Label><Input id="address" value={editedShopAddress} onChange={(e) => setEditedShopAddress(e.target.value)} /></div>
+                      {/* --- NEW: Opening/Closing time inputs --- */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                           <Label htmlFor="opening-time">Opening Time</Label>
+                           <Input id="opening-time" type="time" value={editedOpeningTime} onChange={e => setEditedOpeningTime(e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                           <Label htmlFor="closing-time">Closing Time</Label>
+                           <Input id="closing-time" type="time" value={editedClosingTime} onChange={e => setEditedClosingTime(e.target.value)} />
+                        </div>
+                      </div>
                    </CardContent>
                    <CardFooter><Button onClick={handleUpdateShopDetails}>Save Shop Details</Button></CardFooter>
                  </Card>
@@ -633,21 +684,27 @@ export default function DashboardPage() {
           <Card className="bg-muted/50">
             <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
             <CardContent>
-              {completedList.length > 0 ? (
+              {visibleCompletedList.length > 0 ? (
                 <div className="space-y-4">
-                    {completedList.map((entry, index) => (
+                    {visibleCompletedList.map((entry, index) => (
                       <div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p><Badge variant={'default'}>Done</Badge></div>
                     ))}
                 </div>
               ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as done yet.</p>)}
+              {fullCompletedList.length > 10 && !showAllCompleted && (
+                <Button variant="link" className="w-full mt-4" onClick={() => setShowAllCompleted(true)}>
+                  See all {fullCompletedList.length}
+                </Button>
+              )}
             </CardContent>
           </Card>
+
           <Card className="bg-muted/50">
             <CardHeader><CardTitle>No-Shows</CardTitle></CardHeader>
             <CardContent>
-              {noShowList.length > 0 ? (
+              {visibleNoShowList.length > 0 ? (
                 <div className="space-y-4">
-                  {noShowList.map((entry, index) => (
+                  {visibleNoShowList.map((entry, index) => (
                     <div key={entry.id} className="flex items-center justify-between text-sm">
                       <p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p>
                       <div className="flex items-center gap-2">
@@ -663,6 +720,11 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as a no-show.</p>)}
+              {fullNoShowList.length > 10 && !showAllNoShows && (
+                 <Button variant="link" className="w-full mt-4" onClick={() => setShowAllNoShows(true)}>
+                  See all {fullNoShowList.length}
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>

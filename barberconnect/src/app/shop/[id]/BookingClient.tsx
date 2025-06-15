@@ -8,11 +8,19 @@ import { Label } from "@/components/ui/label"
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Clock } from 'lucide-react'
 
-type Shop = { id: string; name: string; address: string; }
+// --- NEW: Updated Shop type to include opening/closing times ---
+type Shop = { 
+  id: string; 
+  name: string; 
+  address: string; 
+  opening_time: string | null;
+  closing_time: string | null;
+}
 type Service = { id: string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name:string; avatar_url: string | null }
 type QueueEntryWithBarber = {
@@ -43,8 +51,35 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [isChecking, setIsChecking] = useState(false);
   const [checkedPositionInfo, setCheckedPositionInfo] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  // --- NEW: State to disable button after submission ---
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- NEW: Function and state to check if the shop is currently open ---
+  const isShopOpen = useMemo(() => {
+    if (!shop.opening_time || !shop.closing_time) {
+      return false; // If times are not set, assume closed.
+    }
+    const now = new Date();
+    
+    const openingTimeParts = shop.opening_time.split(':');
+    const closingTimeParts = shop.closing_time.split(':');
+
+    const openingDate = new Date();
+    openingDate.setHours(parseInt(openingTimeParts[0]), parseInt(openingTimeParts[1]), 0);
+    
+    const closingDate = new Date();
+    closingDate.setHours(parseInt(closingTimeParts[0]), parseInt(closingTimeParts[1]), 0);
+
+    return now >= openingDate && now <= closingDate;
+  }, [shop.opening_time, shop.closing_time]);
+
+  const formatTime = (timeString: string | null) => {
+    if (!timeString) return '';
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const formattedHour = hour % 12 || 12; // Convert 0 to 12 for 12AM/PM
+    return `${formattedHour}:${minutes} ${ampm}`;
+  };
 
   const isValidAustralianPhone = (phone: string) => {
     const phoneRegex = /^(04|02|03|07|08)\d{8}$/;
@@ -83,7 +118,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // --- NEW: Prevent multiple submissions ---
     if (isSubmitting) return;
 
     if (selectedServices.length === 0 || !selectedBarber || !clientName || !clientPhone) {
@@ -97,7 +131,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     }
 
     setLoading(true);
-    setIsSubmitting(true); // Disable the button immediately
+    setIsSubmitting(true);
 
     try {
       let clientId = null;
@@ -142,7 +176,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       alert(`Error joining queue: ${error instanceof Error ? error.message : 'An unknown error occurred.'}`);
     } finally {
       setLoading(false);
-      // --- NEW: Re-enable the button after a 5-second cooldown ---
       setTimeout(() => setIsSubmitting(false), 5000);
     }
   };
@@ -203,25 +236,27 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                 <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
                   <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleCheckPosition} className="space-y-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="check-name">Your Name</Label>
-                        <Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="check-phone">Your Phone</Label>
-                        <Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button>
-                </form>
+                <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
                 {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
                 <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button></DialogFooter>
             </DialogContent>
         </Dialog>
       </div>
 
-
-      {queueInfo ? (
+      {/* --- NEW: Conditional Rendering based on shop hours --- */}
+      {!isShopOpen ? (
+        <Card className="mt-8 text-center p-8">
+            <CardHeader>
+                <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
+                <CardTitle className="mt-4">Sorry, we&apos;re currently closed.</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-muted-foreground">
+                    Our operating hours are from {formatTime(shop.opening_time)} to {formatTime(shop.closing_time)}. Please check back then!
+                </p>
+            </CardContent>
+        </Card>
+      ) : queueInfo ? (
         <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
@@ -262,7 +297,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                       </div>
                   </div>
                 </div>
-                {/* --- UPDATED: Button is now also disabled by the isSubmitting state --- */}
                 <Button type="submit" size="lg" className="w-full" disabled={loading || isSubmitting}>
                   {isSubmitting ? 'Joining...' : 'Join Queue'}
                 </Button>
