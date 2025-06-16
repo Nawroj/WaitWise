@@ -1,1 +1,1 @@
-# BarberConnect
+# WaitWise
