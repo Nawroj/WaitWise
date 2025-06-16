@@ -9,7 +9,7 @@ export default function HomePage() {
           WaitWise
         </h1>
         <p className="max-w-xl mx-auto text-lg text-muted-foreground">
-          Great service starts before they arrive. Join the queue online and let your customers know when it's their turn.
+          Great service starts before they arrive. Join the queue online and let your customers know when it&apos;s their turn.
         </p>
         <div className="flex flex-col sm:flex-row justify-center gap-4">
           <Link href="/shops">
