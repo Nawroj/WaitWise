@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,16 +11,27 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
-import { Clock } from 'lucide-react'
+import { Clock, Timer } from 'lucide-react'
 
-// --- NEW: Updated Shop type to include opening/closing times ---
-type Shop = { 
-  id: string; 
-  name: string; 
-  address: string; 
+type Shop = {
+  id: string;
+  name: string;
+  address: string;
   opening_time: string | null;
   closing_time: string | null;
 }
+type ServiceDuration = {
+  duration_minutes: number | null;
+};
+
+type QueueEntryService = {
+  services: ServiceDuration | null;
+};
+
+type FetchedQueueEntry = {
+  barber_id: string;
+  queue_entry_services: QueueEntryService[];
+};
 type Service = { id: string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name:string; avatar_url: string | null }
 type QueueEntryWithBarber = {
@@ -46,6 +57,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [loading, setLoading] = useState(false)
   const [queueInfo, setQueueInfo] = useState<{ position: number; name: string } | null>(null);
   const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({});
+  const [waitTimes, setWaitTimes] = useState<Record<string, number>>({});
   const [checkName, setCheckName] = useState('');
   const [checkPhone, setCheckPhone] = useState('');
   const [isChecking, setIsChecking] = useState(false);
@@ -53,19 +65,18 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- NEW: Function and state to check if the shop is currently open ---
   const isShopOpen = useMemo(() => {
     if (!shop.opening_time || !shop.closing_time) {
-      return false; // If times are not set, assume closed.
+      return false;
     }
     const now = new Date();
-    
+
     const openingTimeParts = shop.opening_time.split(':');
     const closingTimeParts = shop.closing_time.split(':');
 
     const openingDate = new Date();
     openingDate.setHours(parseInt(openingTimeParts[0]), parseInt(openingTimeParts[1]), 0);
-    
+
     const closingDate = new Date();
     closingDate.setHours(parseInt(closingTimeParts[0]), parseInt(closingTimeParts[1]), 0);
 
@@ -77,7 +88,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     const [hours, minutes] = timeString.split(':');
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
-    const formattedHour = hour % 12 || 12; // Convert 0 to 12 for 12AM/PM
+    const formattedHour = hour % 12 || 12;
     return `${formattedHour}:${minutes} ${ampm}`;
   };
 
@@ -100,31 +111,70 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     });
   };
 
-  useEffect(() => {
-    const fetchWaitingCounts = async () => {
-        const { data, error } = await supabase.from('queue_entries').select('barber_id').eq('shop_id', shop.id).eq('status', 'waiting');
-        if (error) { console.error("Error fetching waiting counts:", error); return; }
-        const counts = data.reduce((acc, entry) => {
-            if (entry.barber_id) { acc[entry.barber_id] = (acc[entry.barber_id] || 0) + 1; }
-            return acc;
-        }, {} as Record<string, number>);
-        setWaitingCounts(counts);
-    };
-    fetchWaitingCounts();
-    const channel = supabase.channel(`booking_queue_realtime_for_${shop.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, () => fetchWaitingCounts()).subscribe();
-    return () => { supabase.removeChannel(channel); };
+  const fetchQueueDetails = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('queue_entries')
+      .select(`
+        barber_id,
+        queue_entry_services (
+          services ( duration_minutes )
+        )
+      `)
+      .eq('shop_id', shop.id)
+      .eq('status', 'waiting');
+
+    if (error) {
+      console.error("Error fetching queue details:", error);
+      return;
+    }
+
+    const newCounts: Record<string, number> = {};
+    const newWaitTimes: Record<string, number> = {};
+
+    // --- FINAL FIX APPLIED HERE ---
+    // We use a "double cast" to override TypeScript's incorrect type inference.
+    // This tells the editor to trust our type definition.
+    for (const entry of data as unknown as FetchedQueueEntry[]) {
+      if (entry.barber_id) {
+        newCounts[entry.barber_id] = (newCounts[entry.barber_id] || 0) + 1;
+
+        const entryDuration = entry.queue_entry_services.reduce((total, qes) => {
+          const serviceDuration = qes.services?.duration_minutes || 0;
+          return total + serviceDuration;
+        }, 0);
+
+        newWaitTimes[entry.barber_id] = (newWaitTimes[entry.barber_id] || 0) + entryDuration;
+      }
+    }
+
+    setWaitingCounts(newCounts);
+    setWaitTimes(newWaitTimes);
   }, [supabase, shop.id]);
+
+
+  useEffect(() => {
+    fetchQueueDetails();
+    const channel = supabase
+      .channel(`booking_queue_realtime_for_${shop.id}`)
+      .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'queue_entries',
+          filter: `shop_id=eq.${shop.id}`
+      }, () => fetchQueueDetails())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [supabase, shop.id, fetchQueueDetails]);
 
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (isSubmitting) return;
 
     if (selectedServices.length === 0 || !selectedBarber || !clientName || !clientPhone) {
       alert('Please select at least one service, a barber, and enter your details.');
       return;
     }
-
     if (!isValidAustralianPhone(clientPhone)) {
       alert('Please enter a valid 10-digit Australian mobile or landline number.');
       return;
@@ -153,7 +203,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       });
 
       if (rpcError) throw rpcError;
-
       const newEntry = queueData as NewQueueEntryData;
 
       if (newEntry) {
@@ -182,11 +231,10 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
   const handleCheckPosition = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!checkName || !checkPhone) { 
-        setCheckedPositionInfo('Please enter both your name and phone number.'); 
-        return; 
+    if (!checkName || !checkPhone) {
+        setCheckedPositionInfo('Please enter both your name and phone number.');
+        return;
     }
-    
     if (!isValidAustralianPhone(checkPhone)) {
         setCheckedPositionInfo('Please enter a valid 10-digit Australian phone number to check your status.');
         return;
@@ -213,7 +261,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     const { data: waitingQueue, error: waitingQueueError } = await supabase.from('queue_entries').select('id').eq('barber_id', barberId).eq('status', 'waiting').order('queue_position', { ascending: true });
 
     if (waitingQueueError) { setCheckedPositionInfo("Could not determine your position. Please contact the shop."); setIsChecking(false); return; }
-
     const position = waitingQueue.findIndex(entry => entry.id === userEntry.id) + 1;
 
     if (position > 0) { setCheckedPositionInfo(`You are number ${position} in the queue for ${userEntry.barbers?.name}.`);}
@@ -243,7 +290,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         </Dialog>
       </div>
 
-      {/* --- NEW: Conditional Rendering based on shop hours --- */}
       {!isShopOpen ? (
         <Card className="mt-8 text-center p-8">
             <CardHeader>
@@ -282,7 +328,29 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                 </div>
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold">2. Select a Barber</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">{barbers.map(barber => (<Card key={barber.id} className={`cursor-pointer transition-all ${selectedBarber?.id === barber.id ? 'ring-2 ring-primary' : 'ring-1 ring-transparent hover:ring-primary/50'}`} onClick={() => setSelectedBarber(barber)}><CardContent className="flex flex-col items-center justify-center p-4 gap-2 h-full"><Avatar className="w-20 h-20"><AvatarImage src={barber.avatar_url || undefined} alt={barber.name} /><AvatarFallback>{barber.name.split(' ').map(n => n[0]).join('')}</AvatarFallback></Avatar><div className="text-center"><p className="font-medium">{barber.name}</p><Badge variant={(waitingCounts[barber.id] || 0) > 0 ? "default" : "secondary"} className="mt-1 transition-colors">{waitingCounts[barber.id] || 0} waiting</Badge></div></CardContent></Card>))}</div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">{barbers.map(barber => {
+                    const waitingCount = waitingCounts[barber.id] || 0;
+                    const waitTime = waitTimes[barber.id] || 0;
+                    return (
+                      <Card key={barber.id} className={`cursor-pointer transition-all ${selectedBarber?.id === barber.id ? 'ring-2 ring-primary' : 'ring-1 ring-transparent hover:ring-primary/50'}`} onClick={() => setSelectedBarber(barber)}>
+                        <CardContent className="flex flex-col items-center justify-center p-4 gap-2 h-full">
+                          <Avatar className="w-20 h-20"><AvatarImage src={barber.avatar_url || undefined} alt={barber.name} /><AvatarFallback>{barber.name.split(' ').map(n => n[0]).join('')}</AvatarFallback></Avatar>
+                          <div className="text-center">
+                            <p className="font-medium">{barber.name}</p>
+                            <Badge variant={waitingCount > 0 ? "default" : "secondary"} className="mt-1 transition-colors">
+                              {waitingCount} waiting
+                            </Badge>
+                            
+                              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-1.5">
+                                <Timer className="h-3 w-3" />
+                                {waitTime > 0 ? `~${waitTime} min wait` : 'No wait time'}
+                              </div>
+                            
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}</div>
                 </div>
                 <div className="space-y-4 pt-4">
                   <h2 className="text-xl font-semibold">3. Your Details</h2>
