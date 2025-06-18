@@ -186,7 +186,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
           schema: 'public',
           table: 'queue_entries',
           filter: `shop_id=eq.${shop.id}`
-      }, async (payload) => { // Made async to await queue check
+      }, async () => { // Made async to await queue check, removed unused payload
           fetchQueueDetails();
 
           // Check if the current user is waiting for a "you're next" notification
@@ -219,7 +219,8 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [supabase, shop.id, fetchQueueDetails, currentUserQueueEntryId, currentUserBarberId, showNotification]);
+    // --- FIXED: Added shop.name to dependency array ---
+  }, [supabase, shop.id, shop.name, fetchQueueDetails, currentUserQueueEntryId, currentUserBarberId, showNotification]);
 
   // --- MODIFIED: Now saves both queue entry ID and barber ID ---
   const handleJoinQueue = async (e: React.FormEvent) => {
@@ -381,11 +382,13 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         </Card>
       ) : queueInfo ? (
         <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+            {/* --- FIXED: Escaped apostrophe --- */}
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
                 <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue.</p>
                 {notificationPermission === 'granted' && (
-                  <p className="text-xs flex items-center gap-1.5"><Bell className="h-3 w-3"/>We'll notify you when you're next in line.</p>
+                  // --- FIXED: Escaped apostrophe ---
+                  <p className="text-xs flex items-center gap-1.5"><Bell className="h-3 w-3"/>We&apos;ll notify you when you&apos;re next in line.</p>
                 )}
                 {notificationPermission === 'denied' && (
                   <p className="text-xs">You have blocked notifications. You can enable them in your browser settings to be alerted.</p>
