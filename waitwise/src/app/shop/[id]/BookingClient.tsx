@@ -66,13 +66,14 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [notificationPermission, setNotificationPermission] = useState('default');
-  // --- MODIFIED: State now tracks both queue and barber ID ---
   const [currentUserQueueEntryId, setCurrentUserQueueEntryId] = useState<string | null>(null);
   const [currentUserBarberId, setCurrentUserBarberId] = useState<string | null>(null);
 
-  // --- MODIFIED: Effect now checks for both IDs in localStorage ---
   useEffect(() => {
-    setNotificationPermission(Notification.permission);
+    // --- FIX: Safely check if the Notification API is available before using it ---
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
     
     const storedQueueId = localStorage.getItem(`queueEntryId_${shop.id}`);
     const storedBarberId = localStorage.getItem(`barberId_${shop.id}`);
@@ -154,12 +155,14 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       if (entry.barber_id) {
         newCounts[entry.barber_id] = (newCounts[entry.barber_id] || 0) + 1;
 
-        const entryDuration = entry.queue_entry_services.reduce((total, qes) => {
-          const serviceDuration = qes.services?.duration_minutes || 0;
-          return total + serviceDuration;
-        }, 0);
-
-        newWaitTimes[entry.barber_id] = (newWaitTimes[entry.barber_id] || 0) + entryDuration;
+        // --- FIX: Ensure queue_entry_services is an array before calling reduce ---
+        if (Array.isArray(entry.queue_entry_services)) {
+            const entryDuration = entry.queue_entry_services.reduce((total, qes) => {
+              const serviceDuration = qes.services?.duration_minutes || 0;
+              return total + serviceDuration;
+            }, 0);
+            newWaitTimes[entry.barber_id] = (newWaitTimes[entry.barber_id] || 0) + entryDuration;
+        }
       }
     }
 
@@ -168,7 +171,8 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   }, [supabase, shop.id]);
 
   const showNotification = useCallback((title: string, body: string) => {
-    if (notificationPermission === 'granted') {
+    // --- FIX: Safely check for Notification API before creating a notification ---
+    if (typeof window !== 'undefined' && 'Notification' in window && notificationPermission === 'granted') {
       new Notification(title, { 
         body,
         icon: '/favicon.ico'
@@ -176,7 +180,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     }
   }, [notificationPermission]);
 
-  // --- MODIFIED: Real-time listener now checks user's position in the queue ---
   useEffect(() => {
     fetchQueueDetails();
     const channel = supabase
@@ -186,10 +189,9 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
           schema: 'public',
           table: 'queue_entries',
           filter: `shop_id=eq.${shop.id}`
-      }, async () => { // Made async to await queue check, removed unused payload
+      }, async () => { 
           fetchQueueDetails();
-
-          // Check if the current user is waiting for a "you're next" notification
+          
           if (currentUserQueueEntryId && currentUserBarberId) {
             const { data: waitingQueue, error } = await supabase
               .from('queue_entries')
@@ -201,14 +203,12 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             if (error || !waitingQueue) return;
 
             const userPositionIndex = waitingQueue.findIndex(entry => entry.id === currentUserQueueEntryId);
-
-            // If user is number 1 in the queue (index 0)
+            
             if (userPositionIndex === 0) {
               showNotification(
                 "You're next in line!",
                 `Please head to the shop. You are next for your barber at ${shop.name}.`
               );
-              // Clear stored IDs to prevent re-notification
               localStorage.removeItem(`queueEntryId_${shop.id}`);
               localStorage.removeItem(`barberId_${shop.id}`);
               setCurrentUserQueueEntryId(null);
@@ -219,10 +219,8 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-    // --- FIXED: Added shop.name to dependency array ---
   }, [supabase, shop.id, shop.name, fetchQueueDetails, currentUserQueueEntryId, currentUserBarberId, showNotification]);
 
-  // --- MODIFIED: Now saves both queue entry ID and barber ID ---
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting || !selectedBarber) return;
@@ -262,17 +260,19 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       const newEntry = queueData as NewQueueEntryData;
 
       if (newEntry) {
-        // Store both IDs in localStorage and state for notification listener
         localStorage.setItem(`queueEntryId_${shop.id}`, newEntry.id);
         localStorage.setItem(`barberId_${shop.id}`, selectedBarber.id);
         setCurrentUserQueueEntryId(newEntry.id);
         setCurrentUserBarberId(selectedBarber.id);
 
-        if (Notification.permission !== 'granted') {
-          const permission = await Notification.requestPermission();
-          setNotificationPermission(permission);
-        } else {
-          setNotificationPermission(Notification.permission);
+        // --- FIX: Safely check for Notification API before requesting permission ---
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          if (Notification.permission !== 'granted') {
+            const permission = await Notification.requestPermission();
+            setNotificationPermission(permission);
+          } else {
+            setNotificationPermission(Notification.permission);
+          }
         }
 
         const { data: waitingQueue, error: waitingQueueError } = await supabase.from('queue_entries').select('id, queue_position').eq('barber_id', selectedBarber.id).eq('status', 'waiting').order('queue_position', { ascending: true });
@@ -323,7 +323,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
     if (userEntryError || !userEntry) { setCheckedPositionInfo("We couldn't find you in the current queue. Please check your details or join the queue."); setIsChecking(false); return; }
     
-    // --- MODIFIED: If user checks and is found, set their IDs for notifications ---
     if (userEntry.barbers?.id) {
         localStorage.setItem(`queueEntryId_${shop.id}`, userEntry.id);
         localStorage.setItem(`barberId_${shop.id}`, userEntry.barbers.id);
@@ -382,12 +381,10 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         </Card>
       ) : queueInfo ? (
         <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-            {/* --- FIXED: Escaped apostrophe --- */}
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
                 <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue.</p>
                 {notificationPermission === 'granted' && (
-                  // --- FIXED: Escaped apostrophe ---
                   <p className="text-xs flex items-center gap-1.5"><Bell className="h-3 w-3"/>We&apos;ll notify you when you&apos;re next in line.</p>
                 )}
                 {notificationPermission === 'denied' && (
