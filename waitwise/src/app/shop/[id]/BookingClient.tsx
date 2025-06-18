@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
-import { Clock, Timer } from 'lucide-react'
+import { Clock, Timer, Bell } from 'lucide-react'
 
 type Shop = {
   id: string;
@@ -64,6 +64,25 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
   const [checkedPositionInfo, setCheckedPositionInfo] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [notificationPermission, setNotificationPermission] = useState('default');
+  // --- MODIFIED: State now tracks both queue and barber ID ---
+  const [currentUserQueueEntryId, setCurrentUserQueueEntryId] = useState<string | null>(null);
+  const [currentUserBarberId, setCurrentUserBarberId] = useState<string | null>(null);
+
+  // --- MODIFIED: Effect now checks for both IDs in localStorage ---
+  useEffect(() => {
+    setNotificationPermission(Notification.permission);
+    
+    const storedQueueId = localStorage.getItem(`queueEntryId_${shop.id}`);
+    const storedBarberId = localStorage.getItem(`barberId_${shop.id}`);
+    
+    if (storedQueueId && storedBarberId) {
+      setCurrentUserQueueEntryId(storedQueueId);
+      setCurrentUserBarberId(storedBarberId);
+    }
+  }, [shop.id]);
+
 
   const isShopOpen = useMemo(() => {
     if (!shop.opening_time || !shop.closing_time) {
@@ -131,9 +150,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     const newCounts: Record<string, number> = {};
     const newWaitTimes: Record<string, number> = {};
 
-    // --- FINAL FIX APPLIED HERE ---
-    // We use a "double cast" to override TypeScript's incorrect type inference.
-    // This tells the editor to trust our type definition.
     for (const entry of data as unknown as FetchedQueueEntry[]) {
       if (entry.barber_id) {
         newCounts[entry.barber_id] = (newCounts[entry.barber_id] || 0) + 1;
@@ -151,7 +167,16 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     setWaitTimes(newWaitTimes);
   }, [supabase, shop.id]);
 
+  const showNotification = useCallback((title: string, body: string) => {
+    if (notificationPermission === 'granted') {
+      new Notification(title, { 
+        body,
+        icon: '/favicon.ico'
+      });
+    }
+  }, [notificationPermission]);
 
+  // --- MODIFIED: Real-time listener now checks user's position in the queue ---
   useEffect(() => {
     fetchQueueDetails();
     const channel = supabase
@@ -161,18 +186,48 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
           schema: 'public',
           table: 'queue_entries',
           filter: `shop_id=eq.${shop.id}`
-      }, () => fetchQueueDetails())
+      }, async (payload) => { // Made async to await queue check
+          fetchQueueDetails();
+
+          // Check if the current user is waiting for a "you're next" notification
+          if (currentUserQueueEntryId && currentUserBarberId) {
+            const { data: waitingQueue, error } = await supabase
+              .from('queue_entries')
+              .select('id')
+              .eq('barber_id', currentUserBarberId)
+              .eq('status', 'waiting')
+              .order('queue_position', { ascending: true });
+
+            if (error || !waitingQueue) return;
+
+            const userPositionIndex = waitingQueue.findIndex(entry => entry.id === currentUserQueueEntryId);
+
+            // If user is number 1 in the queue (index 0)
+            if (userPositionIndex === 0) {
+              showNotification(
+                "You're next in line!",
+                `Please head to the shop. You are next for your barber at ${shop.name}.`
+              );
+              // Clear stored IDs to prevent re-notification
+              localStorage.removeItem(`queueEntryId_${shop.id}`);
+              localStorage.removeItem(`barberId_${shop.id}`);
+              setCurrentUserQueueEntryId(null);
+              setCurrentUserBarberId(null);
+            }
+          }
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [supabase, shop.id, fetchQueueDetails]);
+  }, [supabase, shop.id, fetchQueueDetails, currentUserQueueEntryId, currentUserBarberId, showNotification]);
 
+  // --- MODIFIED: Now saves both queue entry ID and barber ID ---
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || !selectedBarber) return;
 
-    if (selectedServices.length === 0 || !selectedBarber || !clientName || !clientPhone) {
-      alert('Please select at least one service, a barber, and enter your details.');
+    if (selectedServices.length === 0 || !clientName || !clientPhone) {
+      alert('Please select at least one service and enter your details.');
       return;
     }
     if (!isValidAustralianPhone(clientPhone)) {
@@ -206,6 +261,19 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       const newEntry = queueData as NewQueueEntryData;
 
       if (newEntry) {
+        // Store both IDs in localStorage and state for notification listener
+        localStorage.setItem(`queueEntryId_${shop.id}`, newEntry.id);
+        localStorage.setItem(`barberId_${shop.id}`, selectedBarber.id);
+        setCurrentUserQueueEntryId(newEntry.id);
+        setCurrentUserBarberId(selectedBarber.id);
+
+        if (Notification.permission !== 'granted') {
+          const permission = await Notification.requestPermission();
+          setNotificationPermission(permission);
+        } else {
+          setNotificationPermission(Notification.permission);
+        }
+
         const { data: waitingQueue, error: waitingQueueError } = await supabase.from('queue_entries').select('id, queue_position').eq('barber_id', selectedBarber.id).eq('status', 'waiting').order('queue_position', { ascending: true });
         if (waitingQueueError) {
             console.error("Could not fetch waiting queue:", waitingQueueError);
@@ -253,6 +321,15 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       .single<QueueEntryWithBarber>();
 
     if (userEntryError || !userEntry) { setCheckedPositionInfo("We couldn't find you in the current queue. Please check your details or join the queue."); setIsChecking(false); return; }
+    
+    // --- MODIFIED: If user checks and is found, set their IDs for notifications ---
+    if (userEntry.barbers?.id) {
+        localStorage.setItem(`queueEntryId_${shop.id}`, userEntry.id);
+        localStorage.setItem(`barberId_${shop.id}`, userEntry.barbers.id);
+        setCurrentUserQueueEntryId(userEntry.id);
+        setCurrentUserBarberId(userEntry.barbers.id);
+    }
+
     if (userEntry.status === 'in_progress') { setCheckedPositionInfo(`You're up next! You are currently with ${userEntry.barbers?.name || 'a barber'}.`); setIsChecking(false); return; }
 
     const barberId = userEntry.barbers?.id;
@@ -306,8 +383,13 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
             <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
-                <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue. You&apos;ll be notified when it&apos;s your turn.</p>
-                <p className="text-xs">You can check your position again at any time using the &quot;Check Position&quot; link.</p>
+                <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue.</p>
+                {notificationPermission === 'granted' && (
+                  <p className="text-xs flex items-center gap-1.5"><Bell className="h-3 w-3"/>We'll notify you when you're next in line.</p>
+                )}
+                {notificationPermission === 'denied' && (
+                  <p className="text-xs">You have blocked notifications. You can enable them in your browser settings to be alerted.</p>
+                )}
             </AlertDescription>
         </Alert>
       ) : (
@@ -340,12 +422,12 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                             <Badge variant={waitingCount > 0 ? "default" : "secondary"} className="mt-1 transition-colors">
                               {waitingCount} waiting
                             </Badge>
-                            
+                            {waitTime > 0 && (
                               <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-1.5">
                                 <Timer className="h-3 w-3" />
-                                {waitTime > 0 ? `~${waitTime} min wait` : 'No wait time'}
+                                ~{waitTime} min wait
                               </div>
-                            
+                            )}
                           </div>
                         </CardContent>
                       </Card>
