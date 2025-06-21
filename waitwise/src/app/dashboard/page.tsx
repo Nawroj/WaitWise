@@ -15,11 +15,12 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Edit, RefreshCw, QrCode, CreditCard } from 'lucide-react'
+import { Trash2, Edit, RefreshCw, QrCode, CreditCard, Wand2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QRCode from 'qrcode';
 import { toast } from "sonner"
+import { ListPlus, UserPlus } from 'lucide-react'
 
 
 type QueueEntry = {
@@ -33,7 +34,6 @@ type QueueEntry = {
     services: { id: string; name: string; price: number; } | null
   }[] | null;
 }
-// --- NEW: Updated Shop type to include opening/closing times ---
 type Shop = {
   id: string;
   name: string;
@@ -43,6 +43,7 @@ type Shop = {
   stripe_customer_id: string | null;
   opening_time: string | null;
   closing_time: string | null;
+  account_balance?: number;
 }
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
@@ -64,7 +65,6 @@ export default function DashboardPage() {
   const [editedBarberId, setEditedBarberId] = useState('');
   const [editedShopName, setEditedShopName] = useState('')
   const [editedShopAddress, setEditedShopAddress] = useState('')
-  // --- NEW: State for opening/closing time editors ---
   const [editedOpeningTime, setEditedOpeningTime] = useState('');
   const [editedClosingTime, setEditedClosingTime] = useState('');
   const [newServiceName, setNewServiceName] = useState('')
@@ -77,15 +77,12 @@ export default function DashboardPage() {
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [showAllNoShows, setShowAllNoShows] = useState(false);
 
-  // --- NEW: Updated fetch function to filter by shop hours ---
   const fetchQueueData = useCallback(async (shop: Shop) => {
     if (!shop.opening_time || !shop.closing_time) {
-        // If times aren't set, don't fetch any data
         console.log("Shop opening/closing times are not set.");
         return [];
     }
     const today = new Date().toISOString().slice(0, 10);
-    // Construct start and end timestamps for today based on shop's local time
     const startTime = `${today}T${shop.opening_time}`;
     const endTime = `${today}T${shop.closing_time}`;
 
@@ -99,10 +96,50 @@ export default function DashboardPage() {
     
     if (error) {
       console.error("Error fetching queue:", error);
-      return [];
+      return;
     }
-    return data as QueueEntry[];
+    setQueueEntries(data as QueueEntry[]);
   }, [supabase]);
+
+  useEffect(() => {
+    async function fetchUserAndShop() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).single();
+      if (shopData) {
+        setShop(shopData);
+        setEditedShopName(shopData.name);
+        setEditedShopAddress(shopData.address);
+        setEditedOpeningTime(shopData.opening_time || '09:00');
+        setEditedClosingTime(shopData.closing_time || '17:00');
+      }
+      setLoading(false);
+    }
+    fetchUserAndShop();
+  }, [supabase, router]);
+
+  useEffect(() => {
+    if (!shop) return;
+
+    const fetchAllShopData = async () => {
+      const [
+        _queueData,
+        { data: servicesData },
+        { data: barbersData }
+      ] = await Promise.all([
+        fetchQueueData(shop),
+        supabase.from('services').select('*').eq('shop_id', shop.id).order('created_at'),
+        supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shop.id).order('created_at')
+      ]);
+      setServices(servicesData || []);
+      setBarbers(barbersData || []);
+    };
+
+    fetchAllShopData();
+  }, [shop, supabase, fetchQueueData]);
 
   useEffect(() => {
     if (!shop) return;
@@ -126,46 +163,10 @@ export default function DashboardPage() {
   }, [shop, supabase]);
 
   useEffect(() => {
-    async function initialFetch() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      const { data: shopData } = await supabase.from('shops').select('*').eq('owner_id', user.id).single();
-      if (shopData) {
-        setShop(shopData);
-        setEditedShopName(shopData.name);
-        setEditedShopAddress(shopData.address);
-        // --- NEW: Set initial values for time editors ---
-        setEditedOpeningTime(shopData.opening_time || '09:00');
-        setEditedClosingTime(shopData.closing_time || '17:00');
-        
-        const [entriesData, { data: servicesData }, { data: barbersData }] = await Promise.all([
-          fetchQueueData(shopData),
-          supabase.from('services').select('*').eq('shop_id', shopData.id).order('created_at'),
-          supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shopData.id).order('created_at')
-        ]);
-        setQueueEntries(entriesData);
-        setServices(servicesData || []);
-        setBarbers(barbersData || []);
-      }
-      setLoading(false);
-    }
-    initialFetch();
-  }, [supabase, router, fetchQueueData]);
-
-  useEffect(() => {
     if (!shop) return;
     const channel = supabase.channel(`queue_for_${shop.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, async () => {
-        const updatedQueue = await fetchQueueData(shop);
-        setQueueEntries(updatedQueue);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' }, async () => {
-        const updatedQueue = await fetchQueueData(shop);
-        setQueueEntries(updatedQueue);
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, () => fetchQueueData(shop))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' }, () => fetchQueueData(shop))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, () => {
         setBillableEventsCount(currentCount => currentCount + 1);
       })
@@ -323,7 +324,6 @@ export default function DashboardPage() {
     setEditingQueueEntry(null);
   }
 
-  // --- NEW: Updated handler to save opening/closing times ---
   const handleUpdateShopDetails = async () => {
     if (!shop) return;
     const { data: updatedShop, error } = await supabase
@@ -342,9 +342,12 @@ export default function DashboardPage() {
       toast.error(`Failed to update shop details: ${error.message}`);
       return;
     }
-    if (updatedShop) setShop(updatedShop);
-    alert("Shop details updated!");
+    if (updatedShop) {
+        setShop(updatedShop);
+        toast.success("Shop details updated!");
+    }
   };
+
   const handleAddService = async () => {
     if (!shop || !newServiceName || !newServicePrice || !newServiceDuration) return;
     const { error } = await supabase.from('services').insert({ name: newServiceName, price: parseFloat(newServicePrice), duration_minutes: parseInt(newServiceDuration), shop_id: shop.id });
@@ -352,17 +355,23 @@ export default function DashboardPage() {
       setNewServiceName(''); 
       setNewServicePrice(''); 
       setNewServiceDuration(''); 
+      toast.success("Service added!");
+    } else {
+      toast.error("Failed to add service.");
     }
   };
+
   const handleDeleteService = async (serviceId: string) => {
     if (!confirm("Are you sure you want to delete this service?")) return;
     try {
       await supabase.from('services').delete().eq('id', serviceId).throwOnError();
+      toast.success("Service deleted.");
     } catch (error) {
       console.error("Delete service error:", error);
       toast.error("Could not delete service. It may be linked to historical queue entries.");
     }
   };
+
   const handleAddBarber = async () => {
     if (!shop || !newBarberName) return;
     let avatarUrl: string | null = null;
@@ -384,12 +393,16 @@ export default function DashboardPage() {
       setNewBarberAvatarFile(null);
       const fileInput = document.getElementById('new-barber-avatar') as HTMLInputElement;
       if(fileInput) fileInput.value = '';
+      toast.success("Barber added!");
+    } else {
+      toast.error("Failed to add barber.");
     }
   };
   const handleDeleteBarber = async (barberId: string) => {
     if (!confirm("Are you sure you want to delete this barber?")) return;
     try {
       await supabase.from('barbers').delete().eq('id', barberId).throwOnError();
+      toast.success("Barber deleted.");
     } catch (error) {
       console.error("Delete barber error:", error);
       toast.error("Could not delete barber. They may be linked to historical queue entries.");
@@ -436,13 +449,12 @@ export default function DashboardPage() {
 
   if (loading) {
     return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div>;
-}
+  }
 
-if (!shop) {
-    // Instead of the old message, render the form and pass the `setShop` function
-    // so the form can update the dashboard's state upon successful creation.
+  if (!shop) {
     return <CreateShopForm onShopCreated={setShop} />;
-}
+  }
+
   const isTrial = shop.subscription_status === 'trial' || shop.subscription_status === null;
   const trialUsages = 100 - billableEventsCount;
 
@@ -495,7 +507,6 @@ if (!shop) {
                    <CardContent className="grid gap-4">
                       <div className="grid gap-2"><Label htmlFor="name">Shop Name</Label><Input id="name" value={editedShopName} onChange={(e) => setEditedShopName(e.target.value)} /></div>
                       <div className="grid gap-2"><Label htmlFor="address">Shop Address</Label><Input id="address" value={editedShopAddress} onChange={(e) => setEditedShopAddress(e.target.value)} /></div>
-                      {/* --- NEW: Opening/Closing time inputs --- */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
                            <Label htmlFor="opening-time">Opening Time</Label>
@@ -539,55 +550,91 @@ if (!shop) {
                     </CardContent>
                  </Card>
                  
-                 <Card>
-                   <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
-                   <CardContent>
-                     <Table>
-                        <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Price</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                        <TableBody>
-                          {services.map(s => <TableRow key={s.id}><TableCell>{s.name}</TableCell><TableCell>${s.price}</TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => handleDeleteService(s.id)}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>)}
-                        </TableBody>
-                     </Table>
-                   </CardContent>
-                   <CardFooter className="flex gap-2 items-end">
-                      <div className="grid gap-1.5 flex-grow"><Label htmlFor="new-service-name">New Service</Label><Input id="new-service-name" placeholder="Name" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} /></div>
-                      <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-price">Price</Label><Input id="new-service-price" type="number" placeholder="$" value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} /></div>
-                      <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-duration">Mins</Label><Input id="new-service-duration" type="number" placeholder="Time" value={newServiceDuration} onChange={e => setNewServiceDuration(e.target.value)} /></div>
-                      <Button onClick={handleAddService}>Add</Button>
-                   </CardFooter>
-                 </Card>
-                 <Card>
-                   <CardHeader><CardTitle>Manage Barbers</CardTitle></CardHeader>
-                   <CardContent>
-                     <Table>
-                        <TableHeader><TableRow><TableHead>Barber</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                        <TableBody>
-                          {barbers.map(b => (
-                            <TableRow key={b.id}>
-                              <TableCell className="flex items-center gap-4">
-                                <Avatar>
-                                  <AvatarImage src={b.avatar_url || undefined} alt={b.name} />
-                                  <AvatarFallback>{b.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                </Avatar>
-                                {b.name}
-                              </TableCell>
-                              <TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                     </Table>
-                   </CardContent>
-                   <CardFooter className="flex flex-col gap-4 items-start">
-                      <div className="grid gap-1.5 w-full">
-                        <Label htmlFor="new-barber-name">New Barber Name</Label>
-                        <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} /></div>
-                      <div className="grid gap-1.5 w-full">
-                          <Label htmlFor="new-barber-avatar">Avatar</Label>
-                          <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
-                      </div>
-                      <Button onClick={handleAddBarber}>Add Barber</Button>
-                   </CardFooter>
-                 </Card>
+                <Card>
+                    <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
+                    <CardContent>
+                    {services.length > 0 ? (
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Price</TableHead><TableHead>Mins</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {services.map(s => (
+                                    <TableRow key={s.id}>
+                                        <TableCell>{s.name}</TableCell>
+                                        <TableCell>${s.price}</TableCell>
+                                        <TableCell>{s.duration_minutes}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteService(s.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <div className="text-center p-6 border-2 border-dashed rounded-lg">
+                            <ListPlus className="mx-auto h-12 w-12 text-muted-foreground" />
+                            <h3 className="mt-4 text-lg font-semibold">No Services Added Yet</h3>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Add your first service below to make it available for customers.
+                            </p>
+                        </div>
+                    )}
+                    </CardContent>
+                    <CardFooter className="flex flex-wrap gap-2 items-end">
+                        <div className="grid gap-1.5 flex-grow min-w-[120px]"><Label htmlFor="new-service-name">New Service</Label><Input id="new-service-name" placeholder="Name" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} /></div>
+                        <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-price">Price</Label><Input id="new-service-price" type="number" placeholder="$" value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} /></div>
+                        <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-duration">Mins</Label><Input id="new-service-duration" type="number" placeholder="Time" value={newServiceDuration} onChange={e => setNewServiceDuration(e.target.value)} /></div>
+                        <Button onClick={handleAddService}>Add</Button>
+                    </CardFooter>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle>Manage Barbers</CardTitle></CardHeader>
+                    <CardContent>
+                    {barbers.length > 0 ? (
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Barber</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {barbers.map(b => (
+                                    <TableRow key={b.id}>
+                                        <TableCell className="flex items-center gap-4">
+                                            <Avatar>
+                                                <AvatarImage src={b.avatar_url || undefined} alt={b.name} />
+                                                <AvatarFallback>{b.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                            </Avatar>
+                                            {b.name}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <div className="text-center p-6 border-2 border-dashed rounded-lg">
+                            <UserPlus className="mx-auto h-12 w-12 text-muted-foreground" />
+                            <h3 className="mt-4 text-lg font-semibold">No Barbers Added Yet</h3>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Add your first barber below. Each barber will have their own queue.
+                            </p>
+                        </div>
+                    )}
+                    </CardContent>
+                    <CardFooter className="flex flex-col gap-4 items-start">
+                        <div className="grid gap-1.5 w-full">
+                            <Label htmlFor="new-barber-name">New Barber Name</Label>
+                            <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
+                        </div>
+                        <div className="grid gap-1.5 w-full">
+                            <Label htmlFor="new-barber-avatar">Avatar</Label>
+                            <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
+                        </div>
+                        <Button onClick={handleAddBarber}>Add Barber</Button>
+                    </CardFooter>
+                </Card>
                </div>
                <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
               </DialogContent>
@@ -617,177 +664,220 @@ if (!shop) {
         </Card>
 
         <Separator />
-
-        <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-          {barbers.map(barber => {
-            const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
-            const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
-            const inProgressWithBarber = barberQueue.find(entry => entry.status === 'in_progress');
-            return (
-              <div key={barber.id} className="space-y-4">
-                <h2 className="text-xl font-semibold">{barber.name}</h2>
-                <Card className={inProgressWithBarber ? "border-primary" : "border-transparent shadow-none"}>
-                  {inProgressWithBarber ? (
-                    <>
-                      <CardHeader>
-                        <CardTitle className="flex justify-between items-start">
-                          <span>{inProgressWithBarber.client_name}</span>
-                          <Badge variant="destructive" className="dark:text-black">In Progress</Badge>
-                        </CardTitle>
-                        <CardDescription>
-                          Services: {
-                            inProgressWithBarber.queue_entry_services && inProgressWithBarber.queue_entry_services.length > 0
-                              ? inProgressWithBarber.queue_entry_services
-                                  .map(item => item.services?.name)
-                                  .filter(Boolean)
-                                  .join(', ')
-                              : 'No services listed'
-                          }
-                        </CardDescription>
-                      </CardHeader>
-                      <CardFooter className="flex justify-end">
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleUpdateStatus(inProgressWithBarber.id, 'done')}>Mark as Done</Button>
-                      </CardFooter>
-                    </>
-                  ) : (
-                    <CardContent className="pt-6">
-                      <p className="text-sm text-center text-muted-foreground">Available</p>
-                    </CardContent>
-                  )}
-                </Card>
-                <Separator />
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <Badge variant="secondary">{waitingForBarber.length}</Badge>
-                    Waiting
-                  </h3>
-                  {waitingForBarber.map((entry, index) => (
-                    <Card key={entry.id}>
-                      <CardHeader className="p-4">
-                        <CardTitle className="text-base flex justify-between items-start">
-                          <span className="font-semibold">{index + 1}. {entry.client_name}</span>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditDialog(entry)}><Edit className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
-                            <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber || (isTrial && trialUsages <= 0)}>Start</Button>
-                          </div>
-                        </CardTitle>
-                        <CardDescription className="text-xs pt-1">
-                          {
-                            entry.queue_entry_services && entry.queue_entry_services.length > 0
-                              ? entry.queue_entry_services.map(item => item.services?.name).filter(Boolean).join(', ')
-                              : 'No services listed'
-                          }
-                        </CardDescription>
-                      </CardHeader>
-                    </Card>
-                  ))}
+        
+        {/* --- THIS IS THE SECTION RESPONSIBLE FOR THE GUIDE & LAYOUT CHANGE --- */}
+        {loading === false && barbers.length === 0 ? (
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wand2 className="h-6 w-6" />
+                Welcome! Let&apos;s Get You Set Up.
+              </CardTitle>
+              <CardDescription>
+                Your live queue view will appear here once you&apos;ve added your barbers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="font-semibold">Follow these simple steps:</p>
+                <div className="flex items-start gap-4 p-4 bg-muted rounded-lg">
+                  <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">1</div>
+                  <div>
+                    <h4 className="font-bold">Click &quot;Edit Shop&quot;</h4>
+                    <p className="text-sm text-muted-foreground">Open the main settings panel by clicking the &quot;Edit Shop&quot; button in the top-right corner.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4 p-4 bg-muted rounded-lg">
+                  <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">2</div>
+                  <div>
+                    <h4 className="font-bold">Add Services & Barbers</h4>
+                    <p className="text-sm text-muted-foreground">In the dialog, add the services you offer and the barbers on your team. Each barber will get their own dedicated queue.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4 p-4 bg-muted rounded-lg">
+                  <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">3</div>
+                  <div>
+                    <h4 className="font-bold">Share Your QR Code</h4>
+                    <p className="text-sm text-muted-foreground">Generate your shop's unique QR code from the &quot;Edit Shop&quot; panel and share it with your customers so they can join the queue!</p>
+                  </div>
                 </div>
               </div>
-            )
-          })}
-        </div>
-        
-        <div className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3">
-          <Card className="bg-muted/50">
-            <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
-            <CardContent>
-              {visibleCompletedList.length > 0 ? (
-                <div className="space-y-4">
-                    {visibleCompletedList.map((entry, index) => (
-                      <div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p><Badge variant={'default'}>Done</Badge></div>
-                    ))}
-                </div>
-              ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as done yet.</p>)}
-              {fullCompletedList.length > 10 && !showAllCompleted && (
-                <Button variant="link" className="w-full mt-4" onClick={() => setShowAllCompleted(true)}>
-                  See all {fullCompletedList.length}
-                </Button>
-              )}
             </CardContent>
           </Card>
-
-          <Card className="bg-muted/50">
-            <CardHeader><CardTitle>No-Shows</CardTitle></CardHeader>
-            <CardContent>
-              {visibleNoShowList.length > 0 ? (
-                <div className="space-y-4">
-                  {visibleNoShowList.map((entry, index) => (
-                    <div key={entry.id} className="flex items-center justify-between text-sm">
-                      <p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={'secondary'}>No Show</Badge>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Re-queue Client" onClick={() => handleRequeue(entry)}>
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Delete Entry" onClick={() => handleDeleteFromQueue(entry.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as a no-show.</p>)}
-              {fullNoShowList.length > 10 && !showAllNoShows && (
-                 <Button variant="link" className="w-full mt-4" onClick={() => setShowAllNoShows(true)}>
-                  See all {fullNoShowList.length}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="mt-8 xl:col-span-3">
-          <h2 className="text-2xl font-bold tracking-tight mb-4">Today&apos;s Analytics</h2>
-          <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
-            <Card>
-              <CardHeader><CardTitle>Revenue per Barber</CardTitle></CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={barberRevenue} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tickFormatter={(value) => `$${value}`} />
-                    <YAxis type="category" dataKey="name" width={80} />
-                    <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-                    <Bar dataKey="revenue" name="Total Revenue">
-                      {barberRevenue.map((entry) => (
-                        <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
+        ) : (
+          <>
+            <div className="mt-8 grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+              {barbers.map(barber => {
+                const barberQueue = queueEntries.filter(entry => entry.barbers?.id === barber.id);
+                const waitingForBarber = barberQueue.filter(entry => entry.status === 'waiting');
+                const inProgressWithBarber = barberQueue.find(entry => entry.status === 'in_progress');
+                return (
+                  <div key={barber.id} className="space-y-4">
+                    <h2 className="text-xl font-semibold">{barber.name}</h2>
+                    <Card className={inProgressWithBarber ? "border-primary" : "border-transparent shadow-none"}>
+                      {inProgressWithBarber ? (
+                        <>
+                          <CardHeader>
+                            <CardTitle className="flex justify-between items-start">
+                              <span>{inProgressWithBarber.client_name}</span>
+                              <Badge variant="destructive" className="dark:text-black">In Progress</Badge>
+                            </CardTitle>
+                            <CardDescription>
+                              Services: {
+                                inProgressWithBarber.queue_entry_services && inProgressWithBarber.queue_entry_services.length > 0
+                                  ? inProgressWithBarber.queue_entry_services
+                                      .map(item => item.services?.name)
+                                      .filter(Boolean)
+                                      .join(', ')
+                                  : 'No services listed'
+                              }
+                            </CardDescription>
+                          </CardHeader>
+                          <CardFooter className="flex justify-end">
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleUpdateStatus(inProgressWithBarber.id, 'done')}>Mark as Done</Button>
+                          </CardFooter>
+                        </>
+                      ) : (
+                        <CardContent className="pt-6">
+                          <p className="text-sm text-center text-muted-foreground">Available</p>
+                        </CardContent>
+                      )}
+                    </Card>
+                    <Separator />
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Badge variant="secondary">{waitingForBarber.length}</Badge>
+                        Waiting
+                      </h3>
+                      {waitingForBarber.map((entry, index) => (
+                        <Card key={entry.id}>
+                          <CardHeader className="p-4">
+                            <CardTitle className="text-base flex justify-between items-start">
+                              <span className="font-semibold">{index + 1}. {entry.client_name}</span>
+                              <div className="flex gap-1 flex-shrink-0">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditDialog(entry)}><Edit className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
+                                <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber || (isTrial && trialUsages <= 0)}>Start</Button>
+                              </div>
+                            </CardTitle>
+                            <CardDescription className="text-xs pt-1">
+                              {
+                                entry.queue_entry_services && entry.queue_entry_services.length > 0
+                                  ? entry.queue_entry_services.map(item => item.services?.name).filter(Boolean).join(', ')
+                                  : 'No services listed'
+                              }
+                            </CardDescription>
+                          </CardHeader>
+                        </Card>
                       ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle>Clients per Barber</CardTitle></CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                        <Pie
-                            data={barberClientCount}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={90}
-                            fill="#8884d8"
-                            paddingAngle={5}
-                            dataKey="clients"
-                            nameKey="name"
-                            label={({ name, clients }) => `${name}: ${clients}`}
-                        >
-                            {barberClientCount.map((entry) => (
-                                <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
-                            ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                    </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            
+            <div className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3">
+              <Card className="bg-muted/50">
+                <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
+                <CardContent>
+                  {visibleCompletedList.length > 0 ? (
+                    <div className="space-y-4">
+                        {visibleCompletedList.map((entry, index) => (
+                          <div key={entry.id} className="flex items-center justify-between text-sm"><p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p><Badge variant={'default'}>Done</Badge></div>
+                        ))}
+                    </div>
+                  ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as done yet.</p>)}
+                  {fullCompletedList.length > 5 && !showAllCompleted && (
+                    <Button variant="link" className="w-full mt-4" onClick={() => setShowAllCompleted(true)}>
+                      See all {fullCompletedList.length}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
 
+              <Card className="bg-muted/50">
+                <CardHeader><CardTitle>No-Shows</CardTitle></CardHeader>
+                <CardContent>
+                  {visibleNoShowList.length > 0 ? (
+                    <div className="space-y-4">
+                      {visibleNoShowList.map((entry, index) => (
+                        <div key={entry.id} className="flex items-center justify-between text-sm">
+                          <p>{index + 1}. {entry.client_name} <span className="text-muted-foreground">with {entry.barbers?.name || 'N/A'}</span></p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={'secondary'}>No Show</Badge>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Re-queue Client" onClick={() => handleRequeue(entry)}>
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Delete Entry" onClick={() => handleDeleteFromQueue(entry.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (<p className="text-sm text-center text-muted-foreground">No clients have been marked as a no-show.</p>)}
+                  {fullNoShowList.length > 5 && !showAllNoShows && (
+                     <Button variant="link" className="w-full mt-4" onClick={() => setShowAllNoShows(true)}>
+                      See all {fullNoShowList.length}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="mt-8 xl:col-span-3">
+              <h2 className="text-2xl font-bold tracking-tight mb-4">Today&apos;s Analytics</h2>
+              <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
+                <Card>
+                  <CardHeader><CardTitle>Revenue per Barber</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={barberRevenue} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" tickFormatter={(value) => `$${value}`} />
+                        <YAxis type="category" dataKey="name" width={80} />
+                        <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                        <Bar dataKey="revenue" name="Total Revenue">
+                          {barberRevenue.map((entry) => (
+                            <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle>Clients per Barber</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                            <Pie
+                                data={barberClientCount}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={50}
+                                outerRadius={90}
+                                fill="#8884d8"
+                                paddingAngle={5}
+                                dataKey="clients"
+                                nameKey="name"
+                                label={({ name, clients }) => `${name}: ${clients}`}
+                            >
+                                {barberClientCount.map((entry) => (
+                                    <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
+                                ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                        </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </>
+        )}
+        
       </div>
 
       <Dialog open={isEditQueueEntryDialogOpen} onOpenChange={setIsEditQueueEntryDialogOpen}>
