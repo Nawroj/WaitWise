@@ -1,13 +1,14 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { MobileNav } from "@/components/ui/MobileNav";
 
 export default function HomePage() {
   return (
     <div className="flex flex-col items-center min-h-screen bg-background text-foreground">
-      {/* Header with navigation remains the same */}
       <header className="w-full p-4 flex justify-between items-center max-w-6xl mx-auto">
         <h1 className="text-xl font-bold">WaitWise</h1>
-        <nav className="flex items-center gap-4">
+        
+        <nav className="hidden md:flex items-center gap-4">
           <Link href="/pricing">
             <Button variant="ghost">Pricing</Button>
           </Link>
@@ -18,6 +19,10 @@ export default function HomePage() {
             <Button>Join a Queue</Button>
           </Link>
         </nav>
+
+        <div className="md:hidden">
+          <MobileNav />
+        </div>
       </header>
 
       <main className="flex-grow flex items-center justify-center text-center space-y-6 p-4">
@@ -29,15 +34,14 @@ export default function HomePage() {
             Great service starts before they arrive. Ditch the paper and give your customers the freedom to join the queue from anywhere.
           </p>
           
-          {/* --- UPDATED BUTTON SECTION --- */}
           <div className="mt-8">
             <Link href="/login">
-              <Button size="lg" className="h-12 px-8 text-lg">
+              {/* --- FIX 3: Removed custom classes to make button smaller --- */}
+              <Button size="lg">
                 Create Your Shop
               </Button>
             </Link>
           </div>
-          
         </div>
       </main>
 
