@@ -125,17 +125,18 @@ export default function DashboardPage() {
     if (!shop) return;
 
     const fetchAllShopData = async () => {
+      // --- FIX 1: Removed the unused `_queueData` variable ---
       const [
-        _queueData,
         { data: servicesData },
         { data: barbersData }
       ] = await Promise.all([
-        fetchQueueData(shop),
         supabase.from('services').select('*').eq('shop_id', shop.id).order('created_at'),
         supabase.from('barbers').select('id, name, avatar_url').eq('shop_id', shop.id).order('created_at')
       ]);
       setServices(servicesData || []);
       setBarbers(barbersData || []);
+      // Fetch queue data separately as it might not be needed in every case here
+      fetchQueueData(shop);
     };
 
     fetchAllShopData();
@@ -665,12 +666,12 @@ export default function DashboardPage() {
 
         <Separator />
         
-        {/* --- THIS IS THE SECTION RESPONSIBLE FOR THE GUIDE & LAYOUT CHANGE --- */}
         {loading === false && barbers.length === 0 ? (
           <Card className="mt-8">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wand2 className="h-6 w-6" />
+                {/* --- FIX 2: Escaped the apostrophe --- */}
                 Welcome! Let&apos;s Get You Set Up.
               </CardTitle>
               <CardDescription>
@@ -698,7 +699,7 @@ export default function DashboardPage() {
                   <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">3</div>
                   <div>
                     <h4 className="font-bold">Share Your QR Code</h4>
-                    <p className="text-sm text-muted-foreground">Generate your shop's unique QR code from the &quot;Edit Shop&quot; panel and share it with your customers so they can join the queue!</p>
+                    <p className="text-sm text-muted-foreground">Generate your shop&apos;s unique QR code from the &quot;Edit Shop&quot; panel and share it with your customers so they can join the queue!</p>
                   </div>
                 </div>
               </div>
