@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { MobileNav } from "@/components/ui/MobileNav";
-import { BarChart2, QrCode, Users, Clock, ThumbsUp, TrendingUp} from "lucide-react";
+import { BarChart2, QrCode, Users, Clock, ThumbsUp, TrendingUp } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -72,7 +72,7 @@ export default function HomePage() {
               <div className="flex flex-col items-center gap-2 p-4">
                 <Users className="h-10 w-10 text-primary" />
                 <h4 className="font-bold text-lg mt-2">Live Queue Management</h4>
-                <p className="text-muted-foreground">View and manage separate queues for each barber in real-time.  Mark customers as "in progress," "done," or "no-show." </p>
+                <p className="text-muted-foreground">View and manage separate queues for each barber in real-time. Mark customers as &quot;in progress,&quot; &quot;done,&quot; or &quot;no-show.&quot;</p>
               </div>
               <div className="flex flex-col items-center gap-2 p-4">
                 <QrCode className="h-10 w-10 text-primary" />
@@ -87,7 +87,7 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-        
+
         {/* --- NEW: BENEFITS SECTION --- */}
         <section id="benefits" className="py-20 bg-muted/50">
           <div className="container mx-auto text-center">
@@ -101,17 +101,16 @@ export default function HomePage() {
               <div className="flex flex-col items-center gap-2 p-4">
                 <ThumbsUp className="h-10 w-10 text-primary" />
                 <h4 className="font-bold text-lg mt-2">Improve Customer Experience</h4>
-                <p className="text-muted-foreground">A transparent, modern queuing process shows you value your customers' time, improving their overall satisfaction.</p>
+                <p className="text-muted-foreground">A transparent, modern queuing process shows you value your customers&apos; time, improving their overall satisfaction.</p>
               </div>
               <div className="flex flex-col items-center gap-2 p-4">
                 <Clock className="h-10 w-10 text-primary" />
                 <h4 className="font-bold text-lg mt-2">Increase Staff Efficiency</h4>
-                <p className="text-muted-foreground">Your staff can focus on providing great service instead of managing a crowded waiting area and answering "how much longer?".</p>
+                <p className="text-muted-foreground">Your staff can focus on providing great service instead of managing a crowded waiting area and answering &quot;how much longer?&quot;</p>
               </div>
             </div>
           </div>
         </section>
-
       </main>
 
       {/* --- FOOTER --- */}
