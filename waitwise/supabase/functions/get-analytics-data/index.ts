@@ -1,9 +1,8 @@
-/// <reference types="https://esm.sh/v135/@supabase/supabase-js@2.43.4/dist/module/index.d.ts" />
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from "supabase"
 import { corsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
+  // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -71,7 +70,7 @@ Deno.serve(async (req) => {
     const totalRelevantEntries = totalCustomers + noShowEntries.length;
     const noShowRate = totalRelevantEntries > 0 ? (noShowEntries.length / totalRelevantEntries) * 100 : 0;
 
-    const barberRevenue = doneEntries.reduce((acc, entry) => {
+    const barberRevenue = doneEntries.reduce((acc: { [key: string]: number }, entry) => {
         if (entry.barbers?.name) {
             const entryTotal = entry.queue_entry_services.reduce((sum, qes) => sum + (qes.services?.price || 0), 0);
             acc[entry.barbers.name] = (acc[entry.barbers.name] || 0) + entryTotal;
@@ -80,7 +79,7 @@ Deno.serve(async (req) => {
     }, {});
     const barberRevenueData = Object.keys(barberRevenue).map(name => ({ name, revenue: barberRevenue[name] }));
     
-    const barberClientCount = doneEntries.reduce((acc, entry) => {
+    const barberClientCount = doneEntries.reduce((acc: { [key: string]: number }, entry) => {
         if (entry.barbers?.name) {
             acc[entry.barbers.name] = (acc[entry.barbers.name] || 0) + 1;
         }
