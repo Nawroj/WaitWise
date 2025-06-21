@@ -37,13 +37,11 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
     setError(null)
 
     try {
-      // 1. Get the current user's ID
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError || !user) {
         throw new Error("Could not find user. Please log in again.")
       }
 
-      // 2. Insert the new shop into the 'shops' table
       const { data: newShop, error: insertError } = await supabase
         .from('shops')
         .insert({
@@ -51,7 +49,7 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
           address: shopAddress,
           opening_time: openingTime,
           closing_time: closingTime,
-          owner_id: user.id // Associate the shop with the logged-in user
+          owner_id: user.id
         })
         .select()
         .single()
@@ -60,13 +58,17 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
         throw insertError
       }
 
-      // 3. On success, pass the new shop data back to the parent
       if (newShop) {
         onShopCreated(newShop as Shop)
       }
 
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred.')
+    } catch (err) {
+      // --- FIX 1: Type-safe error handling ---
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('An unexpected error occurred.')
+      }
       console.error("Error creating shop:", err)
     } finally {
       setLoading(false)
@@ -79,7 +81,8 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Welcome to WaitWise!</CardTitle>
           <CardDescription>
-            Let's get your business set up. Fill in the details below to create your shop.
+            {/* --- FIX 2: Escaped the apostrophe in "Let's" --- */}
+            Let&apos;s get your business set up. Fill in the details below to create your shop.
           </CardDescription>
         </CardHeader>
         <CardContent>
