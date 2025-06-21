@@ -1,3 +1,5 @@
+/// <reference types="https://esm.sh/v135/@supabase/supabase-js@2.43.4/dist/module/index.d.ts" />
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
