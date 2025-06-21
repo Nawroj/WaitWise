@@ -15,12 +15,12 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Edit, RefreshCw, QrCode, CreditCard, Wand2 } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu" // --- NEW IMPORT
+import { Trash2, Edit, RefreshCw, QrCode, CreditCard, Wand2, ListPlus, UserPlus, MoreVertical } from 'lucide-react' // --- NEW IMPORT
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QRCode from 'qrcode';
 import { toast } from "sonner"
-import { ListPlus, UserPlus } from 'lucide-react'
 
 
 type QueueEntry = {
@@ -77,21 +77,17 @@ export default function DashboardPage() {
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [showAllNoShows, setShowAllNoShows] = useState(false);
 
-  const fetchQueueData = useCallback(async (shop: Shop) => {
-    if (!shop.opening_time || !shop.closing_time) {
-        console.log("Shop opening/closing times are not set.");
-        return [];
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    const startTime = `${today}T${shop.opening_time}`;
-    const endTime = `${today}T${shop.closing_time}`;
+  const [analyticsRange, setAnalyticsRange] = useState('today');
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
 
+  const fetchQueueData = useCallback(async (shop: Shop) => {
+    if (!shop) return;
     const { data, error } = await supabase
       .from('queue_entries')
       .select(`*, barbers ( id, name ), queue_entry_services ( services ( id, name, price ) )`)
       .eq('shop_id', shop.id)
-      .gte('created_at', startTime)
-      .lte('created_at', endTime)
+      .in('status', ['waiting', 'in_progress'])
       .order('queue_position');
     
     if (error) {
@@ -125,7 +121,6 @@ export default function DashboardPage() {
     if (!shop) return;
 
     const fetchAllShopData = async () => {
-      // --- FIX 1: Removed the unused `_queueData` variable ---
       const [
         { data: servicesData },
         { data: barbersData }
@@ -135,7 +130,6 @@ export default function DashboardPage() {
       ]);
       setServices(servicesData || []);
       setBarbers(barbersData || []);
-      // Fetch queue data separately as it might not be needed in every case here
       fetchQueueData(shop);
     };
 
@@ -162,6 +156,53 @@ export default function DashboardPage() {
     };
     fetchBillableCount();
   }, [shop, supabase]);
+
+  useEffect(() => {
+    if (!shop) return;
+    const fetchAnalytics = async () => {
+      setIsAnalyticsLoading(true);
+
+      const today = new Date();
+      let startDate, endDate = new Date();
+
+      switch (analyticsRange) {
+        case 'week':
+          startDate = new Date(new Date().setDate(today.getDate() - 7));
+          break;
+        case 'month':
+          startDate = new Date(new Date().setMonth(today.getMonth() - 1));
+          break;
+        case 'all_time':
+          startDate = new Date(0);
+          break;
+        case 'today':
+        default:
+          startDate = new Date(new Date().setHours(0, 0, 0, 0));
+          break;
+      }
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('get-analytics-data', {
+          body: { 
+            shop_id: shop.id, 
+            startDate: startDate.toISOString(), 
+            endDate: endDate.toISOString() 
+          },
+        });
+
+        if (error) throw error;
+        
+        setAnalyticsData(data);
+      } catch (error) {
+        toast.error("Failed to load analytics data.");
+        console.error("Analytics error:", error);
+      } finally {
+        setIsAnalyticsLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+  }, [shop, analyticsRange, supabase]);
 
   useEffect(() => {
     if (!shop) return;
@@ -205,35 +246,6 @@ export default function DashboardPage() {
   const visibleCompletedList = useMemo(() => showAllCompleted ? fullCompletedList : fullCompletedList.slice(0, 5), [fullCompletedList, showAllCompleted]);
   const visibleNoShowList = useMemo(() => showAllNoShows ? fullNoShowList : fullNoShowList.slice(0, 5), [fullNoShowList, showAllNoShows]);
   
-  const barberClientCount = useMemo(() => {
-    const counts = barbers.reduce((acc, barber) => {
-      acc[barber.name] = 0;
-      return acc;
-    }, {} as { [key: string]: number });
-    fullCompletedList.forEach(entry => {
-      if(entry.barbers?.name) {
-        counts[entry.barbers.name] = (counts[entry.barbers.name] || 0) + 1;
-      }
-    });
-    return Object.keys(counts).map(name => ({ name, clients: counts[name] }));
-  }, [fullCompletedList, barbers]);
-
-  const barberRevenue = useMemo(() => {
-    const revenues = barbers.reduce((acc, barber) => {
-      acc[barber.name] = 0;
-      return acc;
-    }, {} as { [key: string]: number });
-    fullCompletedList.forEach(entry => {
-      if(entry.barbers?.name) {
-        const entryTotal = entry.queue_entry_services?.reduce((sum, qes) => {
-          return sum + (qes.services?.price || 0);
-        }, 0) || 0;
-        revenues[entry.barbers.name] = (revenues[entry.barbers.name] || 0) + entryTotal;
-      }
-    });
-    return Object.keys(revenues).map(name => ({ name, revenue: revenues[name] }));
-  }, [fullCompletedList, barbers]);
-
   const barberColorMap = useMemo(() => {
     const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
     const map: { [key: string]: string } = {};
@@ -464,14 +476,39 @@ export default function DashboardPage() {
       <div className="container mx-auto p-4 md:p-8">
         <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
-          <div className="flex items-center gap-2">
+          
+          {/* --- RESPONSIVE HEADER BUTTONS --- */}
+          {/* Desktop View: Full Buttons */}
+          <div className="hidden md:flex items-center gap-2">
             <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
-            
-            <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">Billing & Subscription</Button>
-              </DialogTrigger>
-              <DialogContent>
+            <Button variant="outline" onClick={() => setIsBillingDialogOpen(true)}>Billing & Subscription</Button>
+            <Button onClick={() => setIsEditDialogOpen(true)}>Edit Shop</Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>Logout</Button>
+          </div>
+
+          {/* Mobile View: Dropdown Menu */}
+          <div className="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => window.open(`/shop/${shop.id}`, '_blank')}>Join Queue Page</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsEditDialogOpen(true)}>Edit Shop</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsBillingDialogOpen(true)}>Billing & Subscription</DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {/* --- END RESPONSIVE HEADER BUTTONS --- */}
+
+        </header>
+
+        {/* Dialogs remain unchanged */}
+        <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
+            <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Billing & Subscription</DialogTitle>
                   <DialogDescription>
@@ -492,37 +529,35 @@ export default function DashboardPage() {
                 <DialogFooter>
                   <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
                 </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-              <DialogTrigger asChild><Button>Edit Shop</Button></DialogTrigger>
-              <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                 <DialogHeader>
-                 <DialogTitle>Edit {editedShopName}</DialogTitle>
-                 <DialogDescription>Update your shop details, services, barbers, and get your QR code here.</DialogDescription>
-               </DialogHeader>
-               <div className="grid gap-6 py-4">
-                 <Card>
-                   <CardHeader><CardTitle>Shop Details</CardTitle></CardHeader>
-                   <CardContent className="grid gap-4">
+            </DialogContent>
+        </Dialog>
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                <DialogTitle>Edit {editedShopName}</DialogTitle>
+                <DialogDescription>Update your shop details, services, barbers, and get your QR code here.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-6 py-4">
+                <Card>
+                  <CardHeader><CardTitle>Shop Details</CardTitle></CardHeader>
+                  <CardContent className="grid gap-4">
                       <div className="grid gap-2"><Label htmlFor="name">Shop Name</Label><Input id="name" value={editedShopName} onChange={(e) => setEditedShopName(e.target.value)} /></div>
                       <div className="grid gap-2"><Label htmlFor="address">Shop Address</Label><Input id="address" value={editedShopAddress} onChange={(e) => setEditedShopAddress(e.target.value)} /></div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
-                           <Label htmlFor="opening-time">Opening Time</Label>
-                           <Input id="opening-time" type="time" value={editedOpeningTime} onChange={e => setEditedOpeningTime(e.target.value)} />
+                          <Label htmlFor="opening-time">Opening Time</Label>
+                          <Input id="opening-time" type="time" value={editedOpeningTime} onChange={e => setEditedOpeningTime(e.target.value)} />
                         </div>
                         <div className="grid gap-2">
-                           <Label htmlFor="closing-time">Closing Time</Label>
-                           <Input id="closing-time" type="time" value={editedClosingTime} onChange={e => setEditedClosingTime(e.target.value)} />
+                          <Label htmlFor="closing-time">Closing Time</Label>
+                          <Input id="closing-time" type="time" value={editedClosingTime} onChange={e => setEditedClosingTime(e.target.value)} />
                         </div>
                       </div>
-                   </CardContent>
-                   <CardFooter><Button onClick={handleUpdateShopDetails}>Save Shop Details</Button></CardFooter>
-                 </Card>
+                  </CardContent>
+                  <CardFooter><Button onClick={handleUpdateShopDetails}>Save Shop Details</Button></CardFooter>
+                </Card>
 
-                 <Card>
+                <Card>
                     <CardHeader>
                         <CardTitle>Shop QR Code</CardTitle>
                         <CardDescription>
@@ -538,7 +573,7 @@ export default function DashboardPage() {
                             </div>
                         )}
                         <div className="flex gap-2">
-                             <Button onClick={generateQRCode} variant="outline">
+                            <Button onClick={generateQRCode} variant="outline">
                                 <QrCode className="mr-2 h-4 w-4" />
                                 {qrCodeDataUrl ? 'Regenerate' : 'Generate'} QR Code
                             </Button>
@@ -549,100 +584,97 @@ export default function DashboardPage() {
                             )}
                         </div>
                     </CardContent>
-                 </Card>
-                 
-                <Card>
-                    <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
-                    <CardContent>
-                    {services.length > 0 ? (
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Price</TableHead><TableHead>Mins</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {services.map(s => (
-                                    <TableRow key={s.id}>
-                                        <TableCell>{s.name}</TableCell>
-                                        <TableCell>${s.price}</TableCell>
-                                        <TableCell>{s.duration_minutes}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteService(s.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    ) : (
-                        <div className="text-center p-6 border-2 border-dashed rounded-lg">
-                            <ListPlus className="mx-auto h-12 w-12 text-muted-foreground" />
-                            <h3 className="mt-4 text-lg font-semibold">No Services Added Yet</h3>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Add your first service below to make it available for customers.
-                            </p>
-                        </div>
-                    )}
-                    </CardContent>
-                    <CardFooter className="flex flex-wrap gap-2 items-end">
-                        <div className="grid gap-1.5 flex-grow min-w-[120px]"><Label htmlFor="new-service-name">New Service</Label><Input id="new-service-name" placeholder="Name" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} /></div>
-                        <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-price">Price</Label><Input id="new-service-price" type="number" placeholder="$" value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} /></div>
-                        <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-duration">Mins</Label><Input id="new-service-duration" type="number" placeholder="Time" value={newServiceDuration} onChange={e => setNewServiceDuration(e.target.value)} /></div>
-                        <Button onClick={handleAddService}>Add</Button>
-                    </CardFooter>
                 </Card>
-                <Card>
-                    <CardHeader><CardTitle>Manage Barbers</CardTitle></CardHeader>
-                    <CardContent>
-                    {barbers.length > 0 ? (
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Barber</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {barbers.map(b => (
-                                    <TableRow key={b.id}>
-                                        <TableCell className="flex items-center gap-4">
-                                            <Avatar>
-                                                <AvatarImage src={b.avatar_url || undefined} alt={b.name} />
-                                                <AvatarFallback>{b.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                            </Avatar>
-                                            {b.name}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    ) : (
-                        <div className="text-center p-6 border-2 border-dashed rounded-lg">
-                            <UserPlus className="mx-auto h-12 w-12 text-muted-foreground" />
-                            <h3 className="mt-4 text-lg font-semibold">No Barbers Added Yet</h3>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Add your first barber below. Each barber will have their own queue.
-                            </p>
-                        </div>
-                    )}
-                    </CardContent>
-                    <CardFooter className="flex flex-col gap-4 items-start">
-                        <div className="grid gap-1.5 w-full">
-                            <Label htmlFor="new-barber-name">New Barber Name</Label>
-                            <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
-                        </div>
-                        <div className="grid gap-1.5 w-full">
-                            <Label htmlFor="new-barber-avatar">Avatar</Label>
-                            <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
-                        </div>
-                        <Button onClick={handleAddBarber}>Add Barber</Button>
-                    </CardFooter>
-                </Card>
-               </div>
-               <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>Logout</Button>
-          </div>
-        </header>
+                
+               <Card>
+                   <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
+                   <CardContent>
+                   {services.length > 0 ? (
+                       <Table>
+                           <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Price</TableHead><TableHead>Mins</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                           <TableBody>
+                               {services.map(s => (
+                                   <TableRow key={s.id}>
+                                       <TableCell>{s.name}</TableCell>
+                                       <TableCell>${s.price}</TableCell>
+                                       <TableCell>{s.duration_minutes}</TableCell>
+                                       <TableCell className="text-right">
+                                           <Button variant="ghost" size="icon" onClick={() => handleDeleteService(s.id)}>
+                                               <Trash2 className="h-4 w-4" />
+                                           </Button>
+                                       </TableCell>
+                                   </TableRow>
+                               ))}
+                           </TableBody>
+                       </Table>
+                   ) : (
+                       <div className="text-center p-6 border-2 border-dashed rounded-lg">
+                           <ListPlus className="mx-auto h-12 w-12 text-muted-foreground" />
+                           <h3 className="mt-4 text-lg font-semibold">No Services Added Yet</h3>
+                           <p className="mt-1 text-sm text-muted-foreground">
+                               Add your first service below to make it available for customers.
+                           </p>
+                       </div>
+                   )}
+                   </CardContent>
+                   <CardFooter className="flex flex-wrap gap-2 items-end">
+                       <div className="grid gap-1.5 flex-grow min-w-[120px]"><Label htmlFor="new-service-name">New Service</Label><Input id="new-service-name" placeholder="Name" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} /></div>
+                       <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-price">Price</Label><Input id="new-service-price" type="number" placeholder="$" value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} /></div>
+                       <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-duration">Mins</Label><Input id="new-service-duration" type="number" placeholder="Time" value={newServiceDuration} onChange={e => setNewServiceDuration(e.target.value)} /></div>
+                       <Button onClick={handleAddService}>Add</Button>
+                   </CardFooter>
+               </Card>
+               <Card>
+                   <CardHeader><CardTitle>Manage Barbers</CardTitle></CardHeader>
+                   <CardContent>
+                   {barbers.length > 0 ? (
+                       <Table>
+                           <TableHeader><TableRow><TableHead>Barber</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                           <TableBody>
+                               {barbers.map(b => (
+                                   <TableRow key={b.id}>
+                                       <TableCell className="flex items-center gap-4">
+                                           <Avatar>
+                                               <AvatarImage src={b.avatar_url || undefined} alt={b.name} />
+                                               <AvatarFallback>{b.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                           </Avatar>
+                                           {b.name}
+                                       </TableCell>
+                                       <TableCell className="text-right">
+                                           <Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}>
+                                               <Trash2 className="h-4 w-4" />
+                                           </Button>
+                                       </TableCell>
+                                   </TableRow>
+                               ))}
+                           </TableBody>
+                       </Table>
+                   ) : (
+                       <div className="text-center p-6 border-2 border-dashed rounded-lg">
+                           <UserPlus className="mx-auto h-12 w-12 text-muted-foreground" />
+                           <h3 className="mt-4 text-lg font-semibold">No Barbers Added Yet</h3>
+                           <p className="mt-1 text-sm text-muted-foreground">
+                               Add your first barber below. Each barber will have their own queue.
+                           </p>
+                       </div>
+                   )}
+                   </CardContent>
+                   <CardFooter className="flex flex-col gap-4 items-start">
+                       <div className="grid gap-1.5 w-full">
+                           <Label htmlFor="new-barber-name">New Barber Name</Label>
+                           <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
+                       </div>
+                       <div className="grid gap-1.5 w-full">
+                           <Label htmlFor="new-barber-avatar">Avatar</Label>
+                           <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
+                       </div>
+                       <Button onClick={handleAddBarber}>Add Barber</Button>
+                   </CardFooter>
+               </Card>
+              </div>
+              <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
+             </DialogContent>
+        </Dialog>
 
         <Card className="mb-6">
             <CardHeader>
@@ -671,7 +703,6 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wand2 className="h-6 w-6" />
-                {/* --- FIX 2: Escaped the apostrophe --- */}
                 Welcome! Let&apos;s Get You Set Up.
               </CardTitle>
               <CardDescription>
@@ -827,58 +858,96 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-8 xl:col-span-3">
-              <h2 className="text-2xl font-bold tracking-tight mb-4">Today&apos;s Analytics</h2>
-              <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
-                <Card>
-                  <CardHeader><CardTitle>Revenue per Barber</CardTitle></CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={barberRevenue} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" tickFormatter={(value) => `$${value}`} />
-                        <YAxis type="category" dataKey="name" width={80} />
-                        <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-                        <Bar dataKey="revenue" name="Total Revenue">
-                          {barberRevenue.map((entry) => (
-                            <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader><CardTitle>Clients per Barber</CardTitle></CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={barberClientCount}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={50}
-                                outerRadius={90}
-                                fill="#8884d8"
-                                paddingAngle={5}
-                                dataKey="clients"
-                                nameKey="name"
-                                label={({ name, clients }) => `${name}: ${clients}`}
-                            >
-                                {barberClientCount.map((entry) => (
-                                    <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+              <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+                <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
+                <div>
+                  <Select value={analyticsRange} onValueChange={setAnalyticsRange}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select a range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="week">This Week</SelectItem>
+                      <SelectItem value="month">This Month</SelectItem>
+                      <SelectItem value="all_time">All Time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              {isAnalyticsLoading ? (
+                  <p className="text-center text-muted-foreground">Loading analytics...</p>
+              ) : analyticsData ? (
+                <>
+                  <div className="grid gap-4 md:grid-cols-3 mb-8">
+                    <Card>
+                      <CardHeader><CardTitle>Total Revenue</CardTitle></CardHeader>
+                      <CardContent><p className="text-2xl font-bold">${(analyticsData.totalRevenue || 0).toFixed(2)}</p></CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader><CardTitle>Customers Served</CardTitle></CardHeader>
+                      <CardContent><p className="text-2xl font-bold">{analyticsData.totalCustomers || 0}</p></CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader><CardTitle>No-Show Rate</CardTitle></CardHeader>
+                      <CardContent><p className="text-2xl font-bold">{(analyticsData.noShowRate || 0).toFixed(1)}%</p></CardContent>
+                    </Card>
+                  </div>
+                  
+                  <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
+                    <Card>
+                      <CardHeader><CardTitle>Revenue per Barber</CardTitle></CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart data={analyticsData.barberRevenueData || []} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" tickFormatter={(value) => `$${value}`} />
+                            <YAxis type="category" dataKey="name" width={80} />
+                            <Tooltip formatter={(value: number) => `$${Number(value).toFixed(2)}`} />
+                            <Bar dataKey="revenue" name="Total Revenue">
+                              {(analyticsData.barberRevenueData || []).map((entry: any) => (
+                                <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader><CardTitle>Clients per Barber</CardTitle></CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                                <Pie
+                                    data={analyticsData.barberClientData || []}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={50}
+                                    outerRadius={90}
+                                    fill="#8884d8"
+                                    paddingAngle={5}
+                                    dataKey="clients"
+                                    nameKey="name"
+                                    label={({ name, clients }) => `${name}: ${clients}`}
+                                >
+                                    {(analyticsData.barberClientData || []).map((entry: any) => (
+                                        <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-muted-foreground">No analytics data available for this period.</p>
+              )}
             </div>
           </>
         )}
-        
       </div>
 
       <Dialog open={isEditQueueEntryDialogOpen} onOpenChange={setIsEditQueueEntryDialogOpen}>
