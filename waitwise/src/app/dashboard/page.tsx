@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from "@/components/ui/button"
+import { CreateShopForm } from "@/components/ui/CreateShopForm"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -432,9 +433,15 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading) { return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div> }
-  if (!shop) { return <div className="p-8">Please create a shop to view the dashboard.</div> }
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div>;
+}
 
+if (!shop) {
+    // Instead of the old message, render the form and pass the `setShop` function
+    // so the form can update the dashboard's state upon successful creation.
+    return <CreateShopForm onShopCreated={setShop} />;
+}
   const isTrial = shop.subscription_status === 'trial' || shop.subscription_status === null;
   const trialUsages = 100 - billableEventsCount;
 
