@@ -13,10 +13,11 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog"
+// --- FIX: Removed unused 'DialogTrigger' ---
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu" // --- NEW IMPORT
-import { Trash2, Edit, RefreshCw, QrCode, CreditCard, Wand2, ListPlus, UserPlus, MoreVertical } from 'lucide-react' // --- NEW IMPORT
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Trash2, Edit, RefreshCw, QrCode, CreditCard, Wand2, ListPlus, UserPlus, MoreVertical } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QRCode from 'qrcode';
@@ -48,6 +49,15 @@ type Shop = {
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
 
+// --- FIX: Created a type for our analytics data object ---
+type AnalyticsData = {
+  totalRevenue: number;
+  totalCustomers: number;
+  noShowRate: number;
+  barberRevenueData: { name: string; revenue: number }[];
+  barberClientData: { name: string; clients: number }[];
+};
+
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -78,7 +88,8 @@ export default function DashboardPage() {
   const [showAllNoShows, setShowAllNoShows] = useState(false);
 
   const [analyticsRange, setAnalyticsRange] = useState('today');
-  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  // --- FIX: Applied the new type to the state ---
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
 
   const fetchQueueData = useCallback(async (shop: Shop) => {
@@ -163,7 +174,9 @@ export default function DashboardPage() {
       setIsAnalyticsLoading(true);
 
       const today = new Date();
-      let startDate, endDate = new Date();
+      // --- FIX: Changed `let endDate` to `const endDate` ---
+      let startDate;
+      const endDate = new Date();
 
       switch (analyticsRange) {
         case 'week':
@@ -477,8 +490,6 @@ export default function DashboardPage() {
         <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
           
-          {/* --- RESPONSIVE HEADER BUTTONS --- */}
-          {/* Desktop View: Full Buttons */}
           <div className="hidden md:flex items-center gap-2">
             <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
             <Button variant="outline" onClick={() => setIsBillingDialogOpen(true)}>Billing & Subscription</Button>
@@ -486,7 +497,6 @@ export default function DashboardPage() {
             <Button variant="ghost" size="sm" onClick={handleLogout}>Logout</Button>
           </div>
 
-          {/* Mobile View: Dropdown Menu */}
           <div className="md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -502,11 +512,8 @@ export default function DashboardPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {/* --- END RESPONSIVE HEADER BUTTONS --- */}
-
         </header>
 
-        {/* Dialogs remain unchanged */}
         <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
             <DialogContent>
                 <DialogHeader>
@@ -905,7 +912,8 @@ export default function DashboardPage() {
                             <YAxis type="category" dataKey="name" width={80} />
                             <Tooltip formatter={(value: number) => `$${Number(value).toFixed(2)}`} />
                             <Bar dataKey="revenue" name="Total Revenue">
-                              {(analyticsData.barberRevenueData || []).map((entry: any) => (
+                              {/* --- FIX: Added type annotation for entry --- */}
+                              {(analyticsData.barberRevenueData || []).map((entry: { name: string }) => (
                                 <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
                               ))}
                             </Bar>
@@ -930,7 +938,8 @@ export default function DashboardPage() {
                                     nameKey="name"
                                     label={({ name, clients }) => `${name}: ${clients}`}
                                 >
-                                    {(analyticsData.barberClientData || []).map((entry: any) => (
+                                    {/* --- FIX: Added type annotation for entry --- */}
+                                    {(analyticsData.barberClientData || []).map((entry: { name: string }) => (
                                         <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
                                     ))}
                                 </Pie>
