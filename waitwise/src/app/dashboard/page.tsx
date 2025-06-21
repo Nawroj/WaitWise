@@ -19,6 +19,7 @@ import { Trash2, Edit, RefreshCw, QrCode, CreditCard } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QRCode from 'qrcode';
+import { toast } from "sonner"
 
 
 type QueueEntry = {
@@ -242,7 +243,7 @@ export default function DashboardPage() {
 
   const handleRequeue = async (entry: QueueEntry) => {
     if (!entry.barbers?.id) {
-      alert("This client has no assigned barber and cannot be re-queued.");
+      toast.error("This client has no assigned barber and cannot be re-queued.");
       return;
     }
     const { data: waitingEntries, error: fetchError } = await supabase
@@ -255,7 +256,7 @@ export default function DashboardPage() {
 
     if (fetchError) {
       console.error("Error fetching waiting queue:", fetchError);
-      alert("Could not retrieve the current queue. Please try again.");
+      toast.error("Could not retrieve the current queue. Please try again.");
       return;
     }
     const newPosition = waitingEntries && waitingEntries.length > 0 ? waitingEntries[0].queue_position - 1 : 1;
@@ -266,7 +267,7 @@ export default function DashboardPage() {
 
     if (updateError) {
       console.error("Error re-queuing client:", updateError);
-      alert("Failed to re-queue the client.");
+      toast.error("Failed to re-queue the client.");
     }
   };
 
@@ -278,7 +279,7 @@ export default function DashboardPage() {
 
       if (billableError) {
         console.error("Could not create billable event:", billableError);
-        alert("Warning: Could not log this event for billing. Please contact support.");
+        toast.warning("Could not log this event for billing. Please contact support.");
       }
     }
     await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id);
@@ -292,7 +293,7 @@ export default function DashboardPage() {
       await supabase.from('queue_entries').delete().eq('id', id).throwOnError();
     } catch (error) {
       console.error("Delete queue entry error:", error);
-      alert("Could not delete this entry.");
+      toast.error("Could not delete this entry.");
     }
   }
 
@@ -302,7 +303,7 @@ export default function DashboardPage() {
       setEditedBarberId(entry.barbers.id);
       setIsEditQueueEntryDialogOpen(true);
     } else {
-      alert("This entry has no barber assigned to edit.");
+      toast.error("This entry has no barber assigned to edit.");
     }
   }
 
@@ -315,7 +316,7 @@ export default function DashboardPage() {
       .eq('id', editingQueueEntry.id);
     
     if (error) {
-      alert(`Error updating barber: ${error.message}`);
+      toast.error(`Error updating barber: ${error.message}`);
       return;
     }
     setIsEditQueueEntryDialogOpen(false);
@@ -338,7 +339,7 @@ export default function DashboardPage() {
       .single();
 
     if (error) {
-      alert(`Failed to update shop details: ${error.message}`);
+      toast.error(`Failed to update shop details: ${error.message}`);
       return;
     }
     if (updatedShop) setShop(updatedShop);
@@ -359,7 +360,7 @@ export default function DashboardPage() {
       await supabase.from('services').delete().eq('id', serviceId).throwOnError();
     } catch (error) {
       console.error("Delete service error:", error);
-      alert("Could not delete service. It may be linked to historical queue entries.");
+      toast.error("Could not delete service. It may be linked to historical queue entries.");
     }
   };
   const handleAddBarber = async () => {
@@ -371,7 +372,7 @@ export default function DashboardPage() {
       const filePath = `${shop.id}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
       if (uploadError) {
-        alert('Error uploading avatar. Please try again.');
+        toast.error('Error uploading avatar. Please try again.');
         return;
       }
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
@@ -391,7 +392,7 @@ export default function DashboardPage() {
       await supabase.from('barbers').delete().eq('id', barberId).throwOnError();
     } catch (error) {
       console.error("Delete barber error:", error);
-      alert("Could not delete barber. They may be linked to historical queue entries.");
+      toast.error("Could not delete barber. They may be linked to historical queue entries.");
     }
   };
   
@@ -412,7 +413,7 @@ export default function DashboardPage() {
       setQrCodeDataUrl(dataUrl);
     } catch (err) {
       console.error('Failed to generate QR code', err);
-      alert('Could not generate QR code. Please try again.');
+      toast.error('Could not generate QR code. Please try again.');
     }
   };
 
@@ -426,9 +427,9 @@ export default function DashboardPage() {
       window.location.href = data.url;
     } catch (error) {
       if (error instanceof Error) {
-        alert(`Error creating billing portal: ${error.message}`);
+        toast.error(`Error creating billing portal: ${error.message}`);
       } else {
-        alert('An unknown error occurred while creating the billing portal.');
+        toast.error('An unknown error occurred while creating the billing portal.');
       }
     }
   };

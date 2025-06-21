@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Clock, Timer } from 'lucide-react'
+import { toast } from "sonner"
 
 type Shop = {
   id: string;
@@ -171,12 +172,11 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     if (isSubmitting || !selectedBarber) return;
 
     if (selectedServices.length === 0 || !clientName || !clientPhone) {
-      alert('Please select at least one service and enter your details.');
+      toast.error('Please select at least one service and enter your details.');
       return;
     }
     if (!isValidAustralianPhone(clientPhone)) {
-      alert('Please enter a valid 10-digit Australian mobile or landline number.');
-      return;
+      toast.error('Please enter a valid 10-digit Australian mobile or landline number.');
     }
 
     setLoading(true);
@@ -221,7 +221,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         setClientPhone('');
       }
     } catch (error) {
-      alert(`Error joining queue: ${error instanceof Error ? error.message : 'An unknown error occurred.'}`);
+      toast.error(`Error joining queue: ${error instanceof Error ? error.message : 'An unknown error occurred.'}`);
     } finally {
       setLoading(false);
       setTimeout(() => setIsSubmitting(false), 5000);
