@@ -45,8 +45,20 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className="w-full text-center p-4 text-xs text-muted-foreground">
-        © {new Date().getFullYear()} WaitWise. All rights reserved.
+      <footer className="w-full text-center p-8">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} WaitWise. All rights reserved.
+          </p>
+          <nav className="flex gap-4">
+            <Link href="/terms-of-service" className="text-xs text-muted-foreground hover:text-foreground">
+              Terms of Service
+            </Link>
+            <Link href="/privacy-policy" className="text-xs text-muted-foreground hover:text-foreground">
+              Privacy Policy
+            </Link>
+          </nav>
+        </div>
       </footer>
     </div>
   );
