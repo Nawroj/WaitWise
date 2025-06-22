@@ -17,28 +17,34 @@ export default function HomePage() {
         <div className="md:hidden"><MobileNav /></div>
       </header>
 
-      {/* --- HERO SECTION --- */}
-      <main className="flex-grow">
-        <section className="text-center py-20 px-4">
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tighter">
-            The Smart Way to Manage Your Waitlist
-          </h2>
-          <p className="max-w-xl mx-auto text-lg text-muted-foreground mt-4">
-            Great service starts before they arrive. Ditch the paper and give your customers the freedom to join the queue from anywhere.
-          </p>
-          <div className="mt-8">
-            <Link href="/login">
-              <Button size="lg">Create Your Shop</Button>
-            </Link>
+      <main className="flex-grow w-full">
+        {/* --- HERO SECTION --- */}
+        <section className="w-full py-20 md:py-24 lg:py-32">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl">
+              The Smart Way to Manage Your Waitlist
+            </h2>
+            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-4">
+              Great service starts before they arrive. Ditch the paper and give your customers the freedom to join the queue from anywhere.
+            </p>
+            <div className="mt-8">
+              <Link href="/login">
+                <Button size="lg">Create Your Shop</Button>
+              </Link>
+            </div>
           </div>
         </section>
 
-        {/* --- NEW: HOW IT WORKS SECTION --- */}
-        <section id="how-it-works" className="py-20 bg-muted/50">
-          <div className="container mx-auto text-center">
-            <h3 className="text-3xl font-bold mb-2">How It Works</h3>
-            <p className="text-muted-foreground mb-12">Get up and running in three simple steps.</p>
-            <div className="grid md:grid-cols-3 gap-8 text-left">
+        {/* --- HOW IT WORKS SECTION --- */}
+        <section id="how-it-works" className="w-full py-20 bg-muted/50">
+          <div className="container mx-auto px-4">
+            <div className="mx-auto max-w-3xl text-center">
+              <h3 className="text-3xl font-bold">How It Works</h3>
+              <p className="mt-2 text-muted-foreground">
+                Get up and running in three simple steps.
+              </p>
+            </div>
+            <div className="mx-auto mt-12 grid max-w-5xl items-start gap-8 text-left md:grid-cols-3 lg:gap-12">
               <div className="flex items-start gap-4">
                 <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">1</div>
                 <div>
@@ -50,7 +56,7 @@ export default function HomePage() {
                 <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">2</div>
                 <div>
                   <h4 className="font-bold text-lg">Customers Join Online</h4>
-                  <p className="text-muted-foreground">Customers scan a QR code or visit your public page to join the queue and see real-time wait estimates. </p>
+                  <p className="text-muted-foreground">Customers scan a QR code or visit your public page to join the queue and see real-time wait estimates.</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -64,11 +70,13 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* --- NEW: KEY FEATURES SECTION --- */}
-        <section id="features" className="py-20">
-          <div className="container mx-auto text-center">
-            <h3 className="text-3xl font-bold mb-12">Everything You Need to Manage Your Waitlist</h3>
-            <div className="grid md:grid-cols-3 gap-8">
+        {/* --- KEY FEATURES SECTION --- */}
+        <section id="features" className="w-full py-20">
+          <div className="container mx-auto px-4">
+            <div className="mx-auto max-w-3xl text-center">
+              <h3 className="text-3xl font-bold">Everything You Need to Manage Your Waitlist</h3>
+            </div>
+            <div className="mx-auto mt-12 grid max-w-5xl gap-8 md:grid-cols-3 lg:gap-12 text-center">
               <div className="flex flex-col items-center gap-2 p-4">
                 <Users className="h-10 w-10 text-primary" />
                 <h4 className="font-bold text-lg mt-2">Live Queue Management</h4>
@@ -77,22 +85,24 @@ export default function HomePage() {
               <div className="flex flex-col items-center gap-2 p-4">
                 <QrCode className="h-10 w-10 text-primary" />
                 <h4 className="font-bold text-lg mt-2">Custom QR Code</h4>
-                <p className="text-muted-foreground">Generate a unique QR code for your shop that customers can scan to instantly access your queue page. </p>
+                <p className="text-muted-foreground">Generate a unique QR code for your shop that customers can scan to instantly access your queue page.</p>
               </div>
               <div className="flex flex-col items-center gap-2 p-4">
                 <BarChart2 className="h-10 w-10 text-primary" />
                 <h4 className="font-bold text-lg mt-2">Daily Analytics</h4>
-                <p className="text-muted-foreground">Track key metrics like revenue and clients per barber with simple, clear charts to understand your daily performance. </p>
+                <p className="text-muted-foreground">Track key metrics like revenue and clients per barber with simple, clear charts to understand your daily performance.</p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* --- NEW: BENEFITS SECTION --- */}
-        <section id="benefits" className="py-20 bg-muted/50">
-          <div className="container mx-auto text-center">
-            <h3 className="text-3xl font-bold mb-12">Boost Efficiency and Customer Satisfaction</h3>
-            <div className="grid md:grid-cols-3 gap-8">
+        {/* --- BENEFITS SECTION --- */}
+        <section id="benefits" className="w-full py-20 bg-muted/50">
+          <div className="container mx-auto px-4">
+            <div className="mx-auto max-w-3xl text-center">
+              <h3 className="text-3xl font-bold">Boost Efficiency and Customer Satisfaction</h3>
+            </div>
+            <div className="mx-auto mt-12 grid max-w-5xl gap-8 md:grid-cols-3 lg:gap-12 text-center">
               <div className="flex flex-col items-center gap-2 p-4">
                 <TrendingUp className="h-10 w-10 text-primary" />
                 <h4 className="font-bold text-lg mt-2">Reduce Walk-outs</h4>
