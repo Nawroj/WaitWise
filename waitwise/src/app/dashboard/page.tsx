@@ -29,7 +29,7 @@ type QueueEntry = {
   client_name: string;
   queue_position: number;
   status: 'waiting' | 'in_progress' | 'done' | 'no_show';
-  created_at: string; 
+  created_at: string;
   barbers: { id: string; name: string; } | null;
   queue_entry_services: {
     services: { id: string; name: string; price: number; } | null
@@ -62,7 +62,7 @@ type AnalyticsData = {
 export default function DashboardPage() {
   const supabase = createClient()
   const router = useRouter()
-  
+
   const [shop, setShop] = useState<Shop | null>(null)
   const [loading, setLoading] = useState(true)
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([])
@@ -100,7 +100,7 @@ export default function DashboardPage() {
       .eq('shop_id', shop.id)
       .in('status', ['waiting', 'in_progress'])
       .order('queue_position');
-    
+
     if (error) {
       console.error("Error fetching queue:", error);
       return;
@@ -152,7 +152,7 @@ export default function DashboardPage() {
     const fetchBillableCount = async () => {
       const today = new Date();
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      
+
       const { count, error } = await supabase
         .from('billable_events')
         .select('*', { count: 'exact', head: true })
@@ -193,18 +193,18 @@ export default function DashboardPage() {
           startDate = new Date(new Date().setHours(0, 0, 0, 0));
           break;
       }
-      
+
       try {
         const { data, error } = await supabase.functions.invoke('get-analytics-data', {
-          body: { 
-            shop_id: shop.id, 
-            startDate: startDate.toISOString(), 
-            endDate: endDate.toISOString() 
+          body: {
+            shop_id: shop.id,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString()
           },
         });
 
         if (error) throw error;
-        
+
         setAnalyticsData(data);
       } catch (error) {
         toast.error("Failed to load analytics data.");
@@ -233,7 +233,7 @@ export default function DashboardPage() {
     if (!shop) return;
     const servicesChannel = supabase
       .channel(`services_for_${shop.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'services', filter: `shop_id=eq.${shop.id}`}, 
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'services', filter: `shop_id=eq.${shop.id}`},
         (payload) => setServices((current) => [...current, payload.new as Service]))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'services', filter: `shop_id=eq.${shop.id}`},
         (payload) => setServices((current) => current.filter(s => s.id !== payload.old.id)))
@@ -255,10 +255,10 @@ export default function DashboardPage() {
 
   const fullCompletedList = useMemo(() => queueEntries.filter(e => e.status === 'done').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [queueEntries]);
   const fullNoShowList = useMemo(() => queueEntries.filter(e => e.status === 'no_show').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [queueEntries]);
-  
+
   const visibleCompletedList = useMemo(() => showAllCompleted ? fullCompletedList : fullCompletedList.slice(0, 5), [fullCompletedList, showAllCompleted]);
   const visibleNoShowList = useMemo(() => showAllNoShows ? fullNoShowList : fullNoShowList.slice(0, 5), [fullNoShowList, showAllNoShows]);
-  
+
   const barberColorMap = useMemo(() => {
     const VIBRANT_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
     const map: { [key: string]: string } = {};
@@ -270,7 +270,7 @@ export default function DashboardPage() {
 
   const handleRequeue = async (entry: QueueEntry) => {
     if (!entry.barbers?.id) {
-      toast.error("This client has no assigned barber and cannot be re-queued.");
+      toast.error("This client has no assigned staff member and cannot be re-queued.");
       return;
     }
     const { data: waitingEntries, error: fetchError } = await supabase
@@ -313,7 +313,7 @@ export default function DashboardPage() {
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
-  
+
   const handleDeleteFromQueue = async (id: string) => {
     if (!confirm("Are you sure you want to permanently delete this entry?")) return;
     try {
@@ -330,20 +330,20 @@ export default function DashboardPage() {
       setEditedBarberId(entry.barbers.id);
       setIsEditQueueEntryDialogOpen(true);
     } else {
-      toast.error("This entry has no barber assigned to edit.");
+      toast.error("This entry has no staff member assigned to edit.");
     }
   }
 
   const handleUpdateQueueEntry = async () => {
     if (!editingQueueEntry) return;
-    
+
     const { error } = await supabase
       .from('queue_entries')
       .update({ barber_id: editedBarberId })
       .eq('id', editingQueueEntry.id);
-    
+
     if (error) {
-      toast.error(`Error updating barber: ${error.message}`);
+      toast.error(`Error updating staff member: ${error.message}`);
       return;
     }
     setIsEditQueueEntryDialogOpen(false);
@@ -354,8 +354,8 @@ export default function DashboardPage() {
     if (!shop) return;
     const { data: updatedShop, error } = await supabase
       .from('shops')
-      .update({ 
-          name: editedShopName, 
+      .update({
+          name: editedShopName,
           address: editedShopAddress,
           opening_time: editedOpeningTime,
           closing_time: editedClosingTime
@@ -377,10 +377,10 @@ export default function DashboardPage() {
   const handleAddService = async () => {
     if (!shop || !newServiceName || !newServicePrice || !newServiceDuration) return;
     const { error } = await supabase.from('services').insert({ name: newServiceName, price: parseFloat(newServicePrice), duration_minutes: parseInt(newServiceDuration), shop_id: shop.id });
-    if (!error) { 
-      setNewServiceName(''); 
-      setNewServicePrice(''); 
-      setNewServiceDuration(''); 
+    if (!error) {
+      setNewServiceName('');
+      setNewServicePrice('');
+      setNewServiceDuration('');
       toast.success("Service added!");
     } else {
       toast.error("Failed to add service.");
@@ -414,27 +414,27 @@ export default function DashboardPage() {
       avatarUrl = data.publicUrl;
     }
     const { error } = await supabase.from('barbers').insert({ name: newBarberName, avatar_url: avatarUrl, shop_id: shop.id });
-    if (!error) { 
+    if (!error) {
       setNewBarberName('');
       setNewBarberAvatarFile(null);
       const fileInput = document.getElementById('new-barber-avatar') as HTMLInputElement;
       if(fileInput) fileInput.value = '';
-      toast.success("Barber added!");
+      toast.success("Staff member added!");
     } else {
-      toast.error("Failed to add barber.");
+      toast.error("Failed to add staff member.");
     }
   };
   const handleDeleteBarber = async (barberId: string) => {
-    if (!confirm("Are you sure you want to delete this barber?")) return;
+    if (!confirm("Are you sure you want to delete this staff member?")) return;
     try {
       await supabase.from('barbers').delete().eq('id', barberId).throwOnError();
-      toast.success("Barber deleted.");
+      toast.success("Staff member deleted.");
     } catch (error) {
       console.error("Delete barber error:", error);
-      toast.error("Could not delete barber. They may be linked to historical queue entries.");
+      toast.error("Could not delete staff member. They may be linked to historical queue entries.");
     }
   };
-  
+
   const generateQRCode = async () => {
     if (!shop) return;
     const url = `${window.location.origin}/shop/${shop.id}`;
@@ -488,8 +488,8 @@ export default function DashboardPage() {
     <>
       <div className="container mx-auto p-4 md:p-8">
         <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <h1 className="text-3xl font-bold tracking-tight">{shop.name} - Live View</h1>
-          
+          <h1 className="text-3xl font-bold tracking-tight">{shop.name}</h1>
+
           <div className="hidden md:flex items-center gap-2">
             <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
             <Button variant="outline" onClick={() => setIsBillingDialogOpen(true)}>Billing & Subscription</Button>
@@ -542,7 +542,7 @@ export default function DashboardPage() {
             <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                 <DialogTitle>Edit {editedShopName}</DialogTitle>
-                <DialogDescription>Update your shop details, services, barbers, and get your QR code here.</DialogDescription>
+                <DialogDescription>Update your shop details, services, staff, and get your QR code here.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-6 py-4">
                 <Card>
@@ -592,7 +592,7 @@ export default function DashboardPage() {
                         </div>
                     </CardContent>
                 </Card>
-                
+
                <Card>
                    <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
                    <CardContent>
@@ -632,11 +632,11 @@ export default function DashboardPage() {
                    </CardFooter>
                </Card>
                <Card>
-                   <CardHeader><CardTitle>Manage Barbers</CardTitle></CardHeader>
+                   <CardHeader><CardTitle>Manage Staff</CardTitle></CardHeader>
                    <CardContent>
                    {barbers.length > 0 ? (
                        <Table>
-                           <TableHeader><TableRow><TableHead>Barber</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                           <TableHeader><TableRow><TableHead>Staff Member</TableHead><TableHead></TableHead></TableRow></TableHeader>
                            <TableBody>
                                {barbers.map(b => (
                                    <TableRow key={b.id}>
@@ -659,23 +659,23 @@ export default function DashboardPage() {
                    ) : (
                        <div className="text-center p-6 border-2 border-dashed rounded-lg">
                            <UserPlus className="mx-auto h-12 w-12 text-muted-foreground" />
-                           <h3 className="mt-4 text-lg font-semibold">No Barbers Added Yet</h3>
+                           <h3 className="mt-4 text-lg font-semibold">No Staff Added Yet</h3>
                            <p className="mt-1 text-sm text-muted-foreground">
-                               Add your first barber below. Each barber will have their own queue.
+                               Add your first staff member below. Each staff member will have their own queue.
                            </p>
                        </div>
                    )}
                    </CardContent>
                    <CardFooter className="flex flex-col gap-4 items-start">
                        <div className="grid gap-1.5 w-full">
-                           <Label htmlFor="new-barber-name">New Barber Name</Label>
+                           <Label htmlFor="new-barber-name">New Staff Member Name</Label>
                            <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
                        </div>
                        <div className="grid gap-1.5 w-full">
                            <Label htmlFor="new-barber-avatar">Avatar</Label>
                            <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
                        </div>
-                       <Button onClick={handleAddBarber}>Add Barber</Button>
+                       <Button onClick={handleAddBarber}>Add Staff Member</Button>
                    </CardFooter>
                </Card>
               </div>
@@ -704,7 +704,7 @@ export default function DashboardPage() {
         </Card>
 
         <Separator />
-        
+
         {loading === false && barbers.length === 0 ? (
           <Card className="mt-8">
             <CardHeader>
@@ -713,7 +713,7 @@ export default function DashboardPage() {
                 Welcome! Let&apos;s Get You Set Up.
               </CardTitle>
               <CardDescription>
-                Your live queue view will appear here once you&apos;ve added your barbers.
+                Your live queue view will appear here once you&apos;ve added your staff members.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -729,8 +729,8 @@ export default function DashboardPage() {
                 <div className="flex items-start gap-4 p-4 bg-muted rounded-lg">
                   <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">2</div>
                   <div>
-                    <h4 className="font-bold">Add Services & Barbers</h4>
-                    <p className="text-sm text-muted-foreground">In the dialog, add the services you offer and the barbers on your team. Each barber will get their own dedicated queue.</p>
+                    <h4 className="font-bold">Add Services & Staff</h4>
+                    <p className="text-sm text-muted-foreground">In the dialog, add the services you offer and the staff members on your team. Each staff member will get their own dedicated queue.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4 p-4 bg-muted rounded-lg">
@@ -814,7 +814,7 @@ export default function DashboardPage() {
                 )
               })}
             </div>
-            
+
             <div className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3">
               <Card className="bg-muted/50">
                 <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
@@ -900,10 +900,10 @@ export default function DashboardPage() {
                       <CardContent><p className="text-2xl font-bold">{(analyticsData.noShowRate || 0).toFixed(1)}%</p></CardContent>
                     </Card>
                   </div>
-                  
+
                   <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
                     <Card>
-                      <CardHeader><CardTitle>Revenue per Barber</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>Revenue per Staff Member</CardTitle></CardHeader>
                       <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart data={analyticsData.barberRevenueData || []} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -922,7 +922,7 @@ export default function DashboardPage() {
                       </CardContent>
                     </Card>
                     <Card>
-                      <CardHeader><CardTitle>Clients per Barber</CardTitle></CardHeader>
+                      <CardHeader><CardTitle>Clients per Staff Member</CardTitle></CardHeader>
                       <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                             <PieChart>
@@ -963,14 +963,14 @@ export default function DashboardPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Queue for {editingQueueEntry?.client_name}</DialogTitle>
-            <DialogDescription>Change the assigned barber for this client.</DialogDescription>
+            <DialogDescription>Change the assigned staff member for this client.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="barber-select">Change Barber</Label>
+              <Label htmlFor="barber-select">Change Staff Member</Label>
               <Select value={editedBarberId} onValueChange={setEditedBarberId}>
                 <SelectTrigger id="barber-select">
-                  <SelectValue placeholder="Select a barber" />
+                  <SelectValue placeholder="Select a staff member" />
                 </SelectTrigger>
                 <SelectContent>
                   {barbers.map(barber => (

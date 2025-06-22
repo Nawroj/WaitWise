@@ -135,7 +135,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     for (const entry of data as unknown as FetchedQueueEntry[]) {
       if (entry.barber_id) {
         newCounts[entry.barber_id] = (newCounts[entry.barber_id] || 0) + 1;
-        
+
         if (Array.isArray(entry.queue_entry_services)) {
             const entryDuration = entry.queue_entry_services.reduce((total, qes) => {
               const serviceDuration = qes.services?.duration_minutes || 0;
@@ -159,7 +159,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
           schema: 'public',
           table: 'queue_entries',
           filter: `shop_id=eq.${shop.id}`
-      }, () => { 
+      }, () => {
           fetchQueueDetails();
       })
       .subscribe();
@@ -252,11 +252,11 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       .single<QueueEntryWithBarber>();
 
     if (userEntryError || !userEntry) { setCheckedPositionInfo("We couldn't find you in the current queue. Please check your details or join the queue."); setIsChecking(false); return; }
-    
-    if (userEntry.status === 'in_progress') { setCheckedPositionInfo(`You're up next! You are currently with ${userEntry.barbers?.name || 'a barber'}.`); setIsChecking(false); return; }
+
+    if (userEntry.status === 'in_progress') { setCheckedPositionInfo(`You're up next! You are currently with ${userEntry.barbers?.name || 'a staff member'}.`); setIsChecking(false); return; }
 
     const barberId = userEntry.barbers?.id;
-    if (!barberId) { setCheckedPositionInfo("There was an error finding your barber. Please contact the shop."); setIsChecking(false); return; }
+    if (!barberId) { setCheckedPositionInfo("There was an error finding your staff member. Please contact the shop."); setIsChecking(false); return; }
 
     const { data: waitingQueue, error: waitingQueueError } = await supabase.from('queue_entries').select('id').eq('barber_id', barberId).eq('status', 'waiting').order('queue_position', { ascending: true });
 
@@ -281,7 +281,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
             <DialogContent>
                 <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
-                  <DialogDescription>Enter the name and phone number you used to join the &quot;queue&quot;.</DialogDescription>
+                  <DialogDescription>Enter the name and phone number you used to join the queue.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
                 {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
@@ -327,7 +327,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <h2 className="text-xl font-semibold">2. Select a Barber</h2>
+                  <h2 className="text-xl font-semibold">2. Select a Staff Member</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">{barbers.map(barber => {
                     const waitingCount = waitingCounts[barber.id] || 0;
                     const waitTime = waitTimes[barber.id] || 0;
