@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QRCode from 'qrcode';
 import { toast } from "sonner"
+import { Switch } from "@/components/ui/switch"
 
 
 type QueueEntry = {
@@ -86,6 +87,7 @@ export default function DashboardPage() {
   const [billableEventsCount, setBillableEventsCount] = useState(0);
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [showAllNoShows, setShowAllNoShows] = useState(false);
+  const [isSmsPaused, setIsSmsPaused] = useState(true);
 
   const [analyticsRange, setAnalyticsRange] = useState('today');
   // --- FIX: Applied the new type to the state ---
@@ -299,17 +301,80 @@ export default function DashboardPage() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => {
+    // This part handles the billable event for 'done' status and remains the same.
     if (newStatus === 'done' && shop) {
       const { error: billableError } = await supabase
         .from('billable_events')
         .insert({ shop_id: shop.id, queue_entry_id: id });
-
       if (billableError) {
         console.error("Could not create billable event:", billableError);
         toast.warning("Could not log this event for billing. Please contact support.");
       }
     }
-    await supabase.from('queue_entries').update({ status: newStatus }).eq('id', id);
+
+    // Find the current entry to get the barber ID before we update its status
+    const currentEntry = queueEntries.find(entry => entry.id === id);
+    const barberId = currentEntry?.barbers?.id;
+
+    // Update the status of the current entry in the database
+    const { error: updateError } = await supabase
+      .from('queue_entries')
+      .update({ status: newStatus })
+      .eq('id', id);
+
+    if (updateError) {
+      toast.error(`Failed to update status: ${updateError.message}`);
+      return;
+    }
+
+    // === NEW NOTIFICATION LOGIC ===
+    // If a service is STARTING and we know the barber...
+    if (newStatus === 'in_progress' && barberId) {
+      try {
+        // Our database trigger has just re-ordered the queue.
+        // Let's find out who is now at position 1.
+        const { data: nextInQueue, error: nextError } = await supabase
+          .from('queue_entries')
+          .select('id, notification_sent_at')
+          .eq('barber_id', barberId)
+          .eq('status', 'waiting')
+          .eq('queue_position', 1)
+          .single();
+
+        // It's normal for no one to be found if the queue is now empty.
+        // We only act if we find someone.
+        if (nextError && nextError.code !== 'PGRST116') {
+           throw nextError; // Throw actual errors
+        }
+        
+        // If we found the next person AND they haven't been notified yet...
+        if (nextInQueue && !nextInQueue.notification_sent_at) {
+    // === PAUSE LOGIC ===
+    // Only proceed if the SMS system is NOT paused.
+    if (!isSmsPaused) {
+        console.log(`Live SMS Enabled: Found user ${nextInQueue.id} at position 1. Sending notification...`);
+        
+        // ...invoke the edge function to send the SMS!
+        const { error: invokeError } = await supabase.functions.invoke('notify-customer', {
+            body: { queue_entry_id: nextInQueue.id },
+        });
+
+        if (invokeError) {
+            toast.error(`Failed to send notification: ${invokeError.message}`);
+        } else {
+            toast.success("Notification sent to the next client in the queue!");
+        }
+    } else {
+        // If paused, just log to the console for testing purposes.
+        console.log(`SMS Paused: Would have sent notification to user ${nextInQueue.id}`);
+        toast.info("SMS is paused. Notification not sent.");
+    }
+}
+      } catch (error) {
+         console.error("Error in notification logic:", error);
+         toast.error("An error occurred while sending the notification.");
+      }
+    }
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/') }
@@ -490,7 +555,16 @@ export default function DashboardPage() {
         <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h1 className="text-3xl font-bold tracking-tight">{shop.name}</h1>
 
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-4">
+    {/* --- NEW SMS TOGGLE --- */}
+    <div className="flex items-center space-x-2">
+      <Switch
+        id="sms-mode"
+        checked={!isSmsPaused}
+        onCheckedChange={(checked) => setIsSmsPaused(!checked)}
+      />
+      <Label htmlFor="sms-mode">Live SMS</Label>
+    </div>
             <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
             <Button variant="outline" onClick={() => setIsBillingDialogOpen(true)}>Billing & Subscription</Button>
             <Button onClick={() => setIsEditDialogOpen(true)}>Edit Shop</Button>

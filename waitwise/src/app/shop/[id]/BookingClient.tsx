@@ -276,19 +276,6 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
       </header>
       <Separator />
 
-      <div className="text-center mt-6">
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild><Button type="button" variant="link" className="w-full">Already in the queue? Check your position</Button></DialogTrigger>
-            <DialogContent>
-                <DialogHeader><DialogTitle>Check Your Position</DialogTitle>
-                  <DialogDescription>Enter the name and phone number you used to join the queue.</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCheckPosition} className="space-y-4"><div className="grid gap-2"><Label htmlFor="check-name">Your Name</Label><Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} /></div><div className="grid gap-2"><Label htmlFor="check-phone">Your Phone</Label><Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} /></div><Button type="submit" className="w-full" disabled={isChecking}>{isChecking ? "Checking..." : "Check Position"}</Button></form>
-                {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
-                <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button></DialogFooter>
-            </DialogContent>
-        </Dialog>
-      </div>
 
       {!isShopOpen ? (
         <Card className="mt-8 text-center p-8">
@@ -304,12 +291,45 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         </Card>
       ) : queueInfo ? (
         <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-            <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
-            <AlertDescription className="text-green-700 dark:text-green-400 space-y-2">
-                <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue.</p>
-                <p className="text-xs">Please check your position in the queue every 5-10 minutes.</p>
-            </AlertDescription>
-        </Alert>
+    <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
+    <AlertDescription className="text-green-700 dark:text-green-400 space-y-3">
+        <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue.</p>
+        <p className="text-sm">We will send you an SMS when it's your turn. In the meantime, you can also check your position manually if you wish.</p>
+        {/* This div now centers the button */}
+        <div className="mt-2 flex justify-center w-full">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button type="button" variant="link" className="mx-auto text-green-700 dark:text-green-400">
+                        Check your position now
+                    </Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Check Your Position</DialogTitle>
+                        <DialogDescription>Enter the name and phone number you used to join the queue.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleCheckPosition} className="space-y-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="check-name">Your Name</Label>
+                            <Input id="check-name" value={checkName} onChange={(e) => setCheckName(e.target.value)} />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="check-phone">Your Phone</Label>
+                            <Input id="check-phone" type="tel" value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)} />
+                        </div>
+                        <Button type="submit" className="w-full" disabled={isChecking}>
+                            {isChecking ? "Checking..." : "Check Position"}
+                        </Button>
+                    </form>
+                    {checkedPositionInfo && (<Alert><AlertDescription>{checkedPositionInfo}</AlertDescription></Alert>)}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    </AlertDescription>
+</Alert>
       ) : (
         <>
             <form onSubmit={handleJoinQueue} className="mt-8 space-y-8">
