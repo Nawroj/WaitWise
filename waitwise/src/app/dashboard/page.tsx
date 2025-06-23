@@ -579,11 +579,23 @@ export default function DashboardPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => window.open(`/shop/${shop.id}`, '_blank')}>Join Queue Page</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsEditDialogOpen(true)}>Edit Shop</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsBillingDialogOpen(true)}>Billing & Subscription</DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
-              </DropdownMenuContent>
+  {/* --- NEW SMS TOGGLE FOR MOBILE --- */}
+  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent">
+    <div className="flex items-center justify-between w-full">
+      <Label htmlFor="sms-mode-mobile">Live SMS</Label>
+      <Switch
+        id="sms-mode-mobile"
+        checked={!isSmsPaused}
+        onCheckedChange={(checked) => setIsSmsPaused(!checked)}
+      />
+    </div>
+  </DropdownMenuItem>
+  {/* --- END OF NEW --- */}
+  <DropdownMenuItem onSelect={() => window.open(`/shop/${shop.id}`, '_blank')}>Join Queue Page</DropdownMenuItem>
+  <DropdownMenuItem onSelect={() => setIsEditDialogOpen(true)}>Edit Shop</DropdownMenuItem>
+  <DropdownMenuItem onSelect={() => setIsBillingDialogOpen(true)}>Billing & Subscription</DropdownMenuItem>
+  <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
+</DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
