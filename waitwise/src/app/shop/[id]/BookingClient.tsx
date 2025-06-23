@@ -294,7 +294,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
     <AlertDescription className="text-green-700 dark:text-green-400 space-y-3">
         <p>Thanks, {queueInfo.name}! You are number <strong>{queueInfo.position}</strong> in the queue.</p>
-        <p className="text-sm">We will send you an SMS when it's your turn. In the meantime, you can also check your position manually if you wish.</p>
+        <p className="text-sm">We will send you an SMS when it&apos;s your turn. In the meantime, you can also check your position manually if you wish.</p>
         {/* This div now centers the button */}
         <div className="mt-2 flex justify-center w-full">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
