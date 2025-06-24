@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-// --- FIX: Removed unused 'DialogTrigger' ---
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -23,7 +22,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import QRCode from 'qrcode';
 import { toast } from "sonner"
 import { Switch } from "@/components/ui/switch"
-
+import { PinPaymentForm } from "@/components/ui/PinPaymentForm"
 
 type QueueEntry = {
   id: string;
@@ -42,15 +41,15 @@ type Shop = {
   address: string;
   owner_id: string;
   subscription_status: 'trial' | 'active' | 'past_due' | null;
-  stripe_customer_id: string | null;
+  pin_customer_token: string | null;
   opening_time: string | null;
   closing_time: string | null;
   account_balance?: number;
 }
 type Service = { id:string; name: string; price: number; duration_minutes: number }
 type Barber = { id: string; name: string; avatar_url: string | null }
+type Invoice = { id: string; amount: number; created_at: string; status: string; }
 
-// --- FIX: Created a type for our analytics data object ---
 type AnalyticsData = {
   totalRevenue: number;
   totalCustomers: number;
@@ -84,13 +83,16 @@ export default function DashboardPage() {
   const [newBarberName, setNewBarberName] = useState('')
   const [newBarberAvatarFile, setNewBarberAvatarFile] = useState<File | null>(null)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
-  const [billableEventsCount, setBillableEventsCount] = useState(0);
+  const [totalEventCount, setTotalEventCount] = useState(0);
+  const [monthlyBillableEventCount, setMonthlyBillableEventCount] = useState(0);
   const [showAllCompleted, setShowAllCompleted] = useState(false);
   const [showAllNoShows, setShowAllNoShows] = useState(false);
   const [isSmsPaused, setIsSmsPaused] = useState(true);
-
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [billingEmail, setBillingEmail] = useState('');
+  const [isEmailPromptVisible, setIsEmailPromptVisible] = useState(false);
+  const [failedInvoice, setFailedInvoice] = useState<Invoice | null>(null);
   const [analyticsRange, setAnalyticsRange] = useState('today');
-  // --- FIX: Applied the new type to the state ---
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
 
@@ -151,32 +153,64 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!shop) return;
-    const fetchBillableCount = async () => {
+    const fetchUsageCounts = async () => {
       const today = new Date();
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
 
-      const { count, error } = await supabase
+      const { count: totalCount, error: totalError } = await supabase
+        .from('billable_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('shop_id', shop.id);
+
+      if (totalError) {
+        console.error("Error fetching total events count:", totalError);
+      } else {
+        setTotalEventCount(totalCount || 0);
+      }
+
+      const { count: monthlyCount, error: monthlyError } = await supabase
         .from('billable_events')
         .select('*', { count: 'exact', head: true })
         .eq('shop_id', shop.id)
+        .eq('is_billable', true)
         .gte('created_at', firstDayOfMonth);
 
-      if (error) {
-        console.error("Error fetching billable events count:", error);
+      if (monthlyError) {
+        console.error("Error fetching monthly billable events count:", monthlyError);
       } else {
-        setBillableEventsCount(count || 0);
+        setMonthlyBillableEventCount(monthlyCount || 0);
       }
     };
-    fetchBillableCount();
+    fetchUsageCounts();
+  }, [shop, supabase]);
+
+  useEffect(() => {
+    if (shop?.subscription_status === 'past_due') {
+      const fetchFailedInvoice = async () => {
+        const { data, error } = await supabase
+          .from('invoices')
+          .select('id, amount, created_at, status')
+          .eq('shop_id', shop.id)
+          .eq('status', 'failed')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (error && error.code !== 'PGRST116') {
+          console.error("Error fetching failed invoice:", error);
+        } else {
+          setFailedInvoice(data);
+        }
+      };
+      fetchFailedInvoice();
+    }
   }, [shop, supabase]);
 
   useEffect(() => {
     if (!shop) return;
     const fetchAnalytics = async () => {
       setIsAnalyticsLoading(true);
-
       const today = new Date();
-      // --- FIX: Changed `let endDate` to `const endDate` ---
       let startDate;
       const endDate = new Date();
 
@@ -206,7 +240,6 @@ export default function DashboardPage() {
         });
 
         if (error) throw error;
-
         setAnalyticsData(data);
       } catch (error) {
         toast.error("Failed to load analytics data.");
@@ -215,7 +248,6 @@ export default function DashboardPage() {
         setIsAnalyticsLoading(false);
       }
     };
-
     fetchAnalytics();
   }, [shop, analyticsRange, supabase]);
 
@@ -224,8 +256,11 @@ export default function DashboardPage() {
     const channel = supabase.channel(`queue_for_${shop.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entries', filter: `shop_id=eq.${shop.id}` }, () => fetchQueueData(shop))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_entry_services' }, () => fetchQueueData(shop))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, () => {
-        setBillableEventsCount(currentCount => currentCount + 1);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'billable_events', filter: `shop_id=eq.${shop.id}` }, (payload) => {
+        setTotalEventCount(currentCount => currentCount + 1);
+        if (payload.new.is_billable) {
+          setMonthlyBillableEventCount(currentCount => currentCount + 1);
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -257,7 +292,6 @@ export default function DashboardPage() {
 
   const fullCompletedList = useMemo(() => queueEntries.filter(e => e.status === 'done').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [queueEntries]);
   const fullNoShowList = useMemo(() => queueEntries.filter(e => e.status === 'no_show').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [queueEntries]);
-
   const visibleCompletedList = useMemo(() => showAllCompleted ? fullCompletedList : fullCompletedList.slice(0, 5), [fullCompletedList, showAllCompleted]);
   const visibleNoShowList = useMemo(() => showAllNoShows ? fullNoShowList : fullNoShowList.slice(0, 5), [fullNoShowList, showAllNoShows]);
 
@@ -269,6 +303,26 @@ export default function DashboardPage() {
     });
     return map;
   }, [barbers]);
+
+  const handleUpgradeClick = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && user.email) {
+      setBillingEmail(user.email);
+      setIsEmailPromptVisible(false);
+    } else {
+      setIsEmailPromptVisible(true);
+    }
+    setIsUpgrading(true);
+  };
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!billingEmail.includes('@')) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    setIsEmailPromptVisible(false);
+  };
 
   const handleRequeue = async (entry: QueueEntry) => {
     if (!entry.barbers?.id) {
@@ -282,7 +336,6 @@ export default function DashboardPage() {
       .eq('status', 'waiting')
       .order('queue_position', { ascending: true })
       .limit(1);
-
     if (fetchError) {
       console.error("Error fetching waiting queue:", fetchError);
       toast.error("Could not retrieve the current queue. Please try again.");
@@ -293,7 +346,6 @@ export default function DashboardPage() {
       .from('queue_entries')
       .update({ status: 'waiting', queue_position: newPosition })
       .eq('id', entry.id);
-
     if (updateError) {
       console.error("Error re-queuing client:", updateError);
       toast.error("Failed to re-queue the client.");
@@ -301,7 +353,6 @@ export default function DashboardPage() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: QueueEntry['status']) => {
-    // This part handles the billable event for 'done' status and remains the same.
     if (newStatus === 'done' && shop) {
       const { error: billableError } = await supabase
         .from('billable_events')
@@ -311,28 +362,18 @@ export default function DashboardPage() {
         toast.warning("Could not log this event for billing. Please contact support.");
       }
     }
-
-    // Find the current entry to get the barber ID before we update its status
     const currentEntry = queueEntries.find(entry => entry.id === id);
     const barberId = currentEntry?.barbers?.id;
-
-    // Update the status of the current entry in the database
     const { error: updateError } = await supabase
       .from('queue_entries')
       .update({ status: newStatus })
       .eq('id', id);
-
     if (updateError) {
       toast.error(`Failed to update status: ${updateError.message}`);
       return;
     }
-
-    // === NEW NOTIFICATION LOGIC ===
-    // If a service is STARTING and we know the barber...
     if (newStatus === 'in_progress' && barberId) {
       try {
-        // Our database trigger has just re-ordered the queue.
-        // Let's find out who is now at position 1.
         const { data: nextInQueue, error: nextError } = await supabase
           .from('queue_entries')
           .select('id, notification_sent_at')
@@ -340,36 +381,25 @@ export default function DashboardPage() {
           .eq('status', 'waiting')
           .eq('queue_position', 1)
           .single();
-
-        // It's normal for no one to be found if the queue is now empty.
-        // We only act if we find someone.
         if (nextError && nextError.code !== 'PGRST116') {
-           throw nextError; // Throw actual errors
+           throw nextError;
         }
-        
-        // If we found the next person AND they haven't been notified yet...
         if (nextInQueue && !nextInQueue.notification_sent_at) {
-    // === PAUSE LOGIC ===
-    // Only proceed if the SMS system is NOT paused.
-    if (!isSmsPaused) {
-        console.log(`Live SMS Enabled: Found user ${nextInQueue.id} at position 1. Sending notification...`);
-        
-        // ...invoke the edge function to send the SMS!
-        const { error: invokeError } = await supabase.functions.invoke('notify-customer', {
-            body: { queue_entry_id: nextInQueue.id },
-        });
-
-        if (invokeError) {
-            toast.error(`Failed to send notification: ${invokeError.message}`);
-        } else {
-            toast.success("Notification sent to the next client in the queue!");
+          if (!isSmsPaused) {
+              console.log(`Live SMS Enabled: Found user ${nextInQueue.id} at position 1. Sending notification...`);
+              const { error: invokeError } = await supabase.functions.invoke('notify-customer', {
+                  body: { queue_entry_id: nextInQueue.id },
+              });
+              if (invokeError) {
+                  toast.error(`Failed to send notification: ${invokeError.message}`);
+              } else {
+                  toast.success("Notification sent to the next client in the queue!");
+              }
+          } else {
+              console.log(`SMS Paused: Would have sent notification to user ${nextInQueue.id}`);
+              toast.info("SMS is paused. Notification not sent.");
+          }
         }
-    } else {
-        // If paused, just log to the console for testing purposes.
-        console.log(`SMS Paused: Would have sent notification to user ${nextInQueue.id}`);
-        toast.info("SMS is paused. Notification not sent.");
-    }
-}
       } catch (error) {
          console.error("Error in notification logic:", error);
          toast.error("An error occurred while sending the notification.");
@@ -401,12 +431,10 @@ export default function DashboardPage() {
 
   const handleUpdateQueueEntry = async () => {
     if (!editingQueueEntry) return;
-
     const { error } = await supabase
       .from('queue_entries')
       .update({ barber_id: editedBarberId })
       .eq('id', editingQueueEntry.id);
-
     if (error) {
       toast.error(`Error updating staff member: ${error.message}`);
       return;
@@ -428,7 +456,6 @@ export default function DashboardPage() {
       .eq('id', shop.id)
       .select()
       .single();
-
     if (error) {
       toast.error(`Failed to update shop details: ${error.message}`);
       return;
@@ -462,6 +489,31 @@ export default function DashboardPage() {
       toast.error("Could not delete service. It may be linked to historical queue entries.");
     }
   };
+
+
+const handleRetryPayment = async () => {
+  if (!shop || !failedInvoice) return;
+
+  toast.loading("Retrying payment...");
+
+  const { error } = await supabase.functions.invoke('retry-payment', {
+    body: { shop_id: shop.id },
+  });
+
+  toast.dismiss();
+
+  if (error) {
+    toast.error(`Payment failed: ${error.message}`);
+  } else {
+    toast.success("Payment successful! Your account is now active.");
+    // Refresh the local data to update the UI
+    const { data: updatedShop } = await supabase.from('shops').select('*').eq('id', shop.id).single();
+    if (updatedShop) {
+      setShop(updatedShop);
+      setFailedInvoice(null);
+    }
+  }
+};
 
   const handleAddBarber = async () => {
     if (!shop || !newBarberName) return;
@@ -521,23 +573,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCreatePortal = async () => {
-    if (!shop) return;
-    try {
-      const { data, error } = await supabase.functions.invoke('create-stripe-portal', {
-        body: { shop_id: shop.id },
-      });
-      if (error) throw error;
-      window.location.href = data.url;
-    } catch (error) {
-      if (error instanceof Error) {
-        toast.error(`Error creating billing portal: ${error.message}`);
-      } else {
-        toast.error('An unknown error occurred while creating the billing portal.');
-      }
-    }
-  };
-
   if (loading) {
     return <div className="flex items-center justify-center h-screen"><p>Loading...</p></div>;
   }
@@ -546,31 +581,32 @@ export default function DashboardPage() {
     return <CreateShopForm onShopCreated={setShop} />;
   }
 
-  const isTrial = shop.subscription_status === 'trial' || shop.subscription_status === null;
-  const trialUsages = 100 - billableEventsCount;
-
   return (
     <>
       <div className="container mx-auto p-4 md:p-8">
+        {shop.subscription_status === 'past_due' && (
+          <div className="p-4 mb-6 text-destructive-foreground bg-destructive rounded-md" role="alert">
+            <h3 className="font-bold">Payment Problem</h3>
+            <p>We were unable to process your last payment. Please update your payment method in the billing section to restore full access.</p>
+          </div>
+        )}
+        
         <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <h1 className="text-3xl font-bold tracking-tight">{shop.name}</h1>
-
           <div className="hidden md:flex items-center gap-4">
-    {/* --- NEW SMS TOGGLE --- */}
-    <div className="flex items-center space-x-2">
-      <Switch
-        id="sms-mode"
-        checked={!isSmsPaused}
-        onCheckedChange={(checked) => setIsSmsPaused(!checked)}
-      />
-      <Label htmlFor="sms-mode">Live SMS</Label>
-    </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="sms-mode"
+                checked={!isSmsPaused}
+                onCheckedChange={(checked) => setIsSmsPaused(!checked)}
+              />
+              <Label htmlFor="sms-mode">Live SMS</Label>
+            </div>
             <Link href={`/shop/${shop.id}`} target="_blank"><Button variant="outline">Join Queue</Button></Link>
             <Button variant="outline" onClick={() => setIsBillingDialogOpen(true)}>Billing & Subscription</Button>
             <Button onClick={() => setIsEditDialogOpen(true)}>Edit Shop</Button>
             <Button variant="ghost" size="sm" onClick={handleLogout}>Logout</Button>
           </div>
-
           <div className="md:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -579,214 +615,348 @@ export default function DashboardPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-  {/* --- NEW SMS TOGGLE FOR MOBILE --- */}
-  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent">
-    <div className="flex items-center justify-between w-full">
-      <Label htmlFor="sms-mode-mobile">Live SMS</Label>
-      <Switch
-        id="sms-mode-mobile"
-        checked={!isSmsPaused}
-        onCheckedChange={(checked) => setIsSmsPaused(!checked)}
-      />
-    </div>
-  </DropdownMenuItem>
-  {/* --- END OF NEW --- */}
-  <DropdownMenuItem onSelect={() => window.open(`/shop/${shop.id}`, '_blank')}>Join Queue Page</DropdownMenuItem>
-  <DropdownMenuItem onSelect={() => setIsEditDialogOpen(true)}>Edit Shop</DropdownMenuItem>
-  <DropdownMenuItem onSelect={() => setIsBillingDialogOpen(true)}>Billing & Subscription</DropdownMenuItem>
-  <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
-</DropdownMenuContent>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="focus:bg-transparent">
+                  <div className="flex items-center justify-between w-full">
+                    <Label htmlFor="sms-mode-mobile">Live SMS</Label>
+                    <Switch
+                      id="sms-mode-mobile"
+                      checked={!isSmsPaused}
+                      onCheckedChange={(checked) => setIsSmsPaused(!checked)}
+                    />
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => window.open(`/shop/${shop.id}`, '_blank')}>Join Queue Page</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsEditDialogOpen(true)}>Edit Shop</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsBillingDialogOpen(true)}>Billing & Subscription</DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
+              </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
 
-        <Dialog open={isBillingDialogOpen} onOpenChange={setIsBillingDialogOpen}>
-            <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Billing & Subscription</DialogTitle>
-                  <DialogDescription>
-                    Manage your subscription and view usage.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
+        <Dialog open={isBillingDialogOpen} onOpenChange={(isOpen) => {
+          setIsBillingDialogOpen(isOpen);
+          if (!isOpen) {
+            setIsUpgrading(false);
+            setIsEmailPromptVisible(false);
+            setBillingEmail('');
+          }
+        }}>
+          <DialogContent className="grid grid-rows-[auto_1fr_auto] max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>Billing & Subscription</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 pr-6 overflow-y-auto">
+              {shop.subscription_status === 'trial' || shop.subscription_status === null ? (
+                <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
                     <div>
                       <p className="text-sm font-medium">Current Plan</p>
-                      <p className="text-2xl font-bold capitalize">{shop.subscription_status || 'Trial'}</p>
+                      <p className="text-2xl font-bold capitalize">Trial</p>
                     </div>
-                    <Button onClick={handleCreatePortal}>
-                      <CreditCard className="mr-2 h-4 w-4"/> Manage Billing
-                    </Button>
+                    {!isUpgrading && (
+                      <Button onClick={handleUpgradeClick}>
+                        <CreditCard className="mr-2 h-4 w-4" /> Upgrade Now
+                      </Button>
+                    )}
                   </div>
+                  {isUpgrading && (
+                    <div className="pt-4">
+                      {isEmailPromptVisible ? (
+                        <form onSubmit={handleEmailSubmit} className="space-y-4">
+                          <DialogDescription>
+                            Your account doesn't have an email. Please provide a billing email address to continue.
+                          </DialogDescription>
+                          <div className="grid gap-2">
+                            <Label htmlFor="billing-email">Billing Email</Label>
+                            <Input
+                              id="billing-email"
+                              type="email"
+                              placeholder="you@example.com"
+                              value={billingEmail}
+                              onChange={(e) => setBillingEmail(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <Button type="submit" className="w-full">Save and Continue</Button>
+                        </form>
+                      ) : (
+                        <>
+                          <DialogDescription className="mb-4">
+                            To upgrade to our Pay-as-you-go plan, please add a payment method.
+                          </DialogDescription>
+                          <PinPaymentForm
+                            publishableKey={process.env.NEXT_PUBLIC_PIN_PUBLISHABLE_KEY!}
+                            onSuccess={async (card_token) => {
+                              toast.loading('Saving your card...');
+                              const { data, error } = await supabase.functions.invoke('create-pin-customer', {
+                                body: { card_token, email: billingEmail },
+                              });
+                              toast.dismiss();
+                              if (error) {
+                                toast.error(`Failed to save card: ${error.message}`);
+                                return;
+                              }
+                              const { error: updateError } = await supabase
+                                .from('shops')
+                                .update({
+                                  pin_customer_token: data.customer_token,
+                                  subscription_status: 'active'
+                                })
+                                .eq('id', shop.id);
+                              if (updateError) {
+                                toast.error(`Failed to update shop: ${updateError.message}`);
+                              } else {
+                                toast.success('Upgrade successful! Your payment method has been saved.');
+                                const { data: updatedShop } = await supabase.from('shops').select('*').eq('id', shop.id).single();
+                                if (updatedShop) setShop(updatedShop);
+                                setIsBillingDialogOpen(false);
+                              }
+                            }}
+                            onFailure={(error) => {
+                              toast.error(error);
+                            }}
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <DialogFooter>
-                  <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
-                </DialogFooter>
-            </DialogContent>
+              ) : (
+                <div className="space-y-4">
+                  {shop.subscription_status === 'past_due' && failedInvoice && (
+                    <div className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg text-destructive">
+                      <p className="font-bold">Payment Failed</p>
+                      <p className="text-sm">
+                        Your payment of ${(failedInvoice.amount / 100).toFixed(2)} on {new Date(failedInvoice.created_at).toLocaleDateString()} was declined.
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">Current Plan</p>
+                      <p className="text-2xl font-bold capitalize">{shop.subscription_status}</p>
+                    </div>
+                    {shop.subscription_status === 'active' ? (
+                        <Badge variant="default" className="bg-green-600">Active</Badge>
+                    ) : (
+                        <Badge variant="destructive">Past Due</Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {shop.subscription_status === 'past_due' 
+                        ? 'Please update your payment method or retry the payment below to restore service.'
+                        : 'You have a payment method on file. Your account will be billed for usage at the end of each month.'
+                    }
+                  </p>
+                  {shop.subscription_status === 'past_due' && failedInvoice && (
+  <Button className="w-full" onClick={handleRetryPayment}> {/* Remove 'disabled' and add 'onClick' */}
+    Retry Payment for ${(failedInvoice.amount / 100).toFixed(2)}
+  </Button>
+)}
+                  <Button variant="outline" className="w-full" onClick={() => setIsUpgrading(true)}>
+                    {isUpgrading ? 'Close Form' : 'Update Payment Method'}
+                  </Button>
+                  {isUpgrading && (
+                    <div className="pt-4">
+                        <PinPaymentForm
+                          publishableKey={process.env.NEXT_PUBLIC_PIN_PUBLISHABLE_KEY!}
+                          onSuccess={async (card_token) => {
+                            toast.success('Payment method updated. You can now retry the payment.');
+                            setIsUpgrading(false);
+                          }}
+                          onFailure={(error) => {
+                            toast.error(error);
+                          }}
+                        />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
+        
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
             <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                <DialogTitle>Edit {editedShopName}</DialogTitle>
-                <DialogDescription>Update your shop details, services, staff, and get your QR code here.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-6 py-4">
-                <Card>
-                  <CardHeader><CardTitle>Shop Details</CardTitle></CardHeader>
-                  <CardContent className="grid gap-4">
-                      <div className="grid gap-2"><Label htmlFor="name">Shop Name</Label><Input id="name" value={editedShopName} onChange={(e) => setEditedShopName(e.target.value)} /></div>
-                      <div className="grid gap-2"><Label htmlFor="address">Shop Address</Label><Input id="address" value={editedShopAddress} onChange={(e) => setEditedShopAddress(e.target.value)} /></div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="opening-time">Opening Time</Label>
-                          <Input id="opening-time" type="time" value={editedOpeningTime} onChange={e => setEditedOpeningTime(e.target.value)} />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="closing-time">Closing Time</Label>
-                          <Input id="closing-time" type="time" value={editedClosingTime} onChange={e => setEditedClosingTime(e.target.value)} />
-                        </div>
-                      </div>
-                  </CardContent>
-                  <CardFooter><Button onClick={handleUpdateShopDetails}>Save Shop Details</Button></CardFooter>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Shop QR Code</CardTitle>
-                        <CardDescription>
-                            Customers can scan this code to go directly to your booking page.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col items-center justify-center gap-4">
-                        {qrCodeDataUrl ? (
-                            <Image src={qrCodeDataUrl} alt="Shop QR Code" width={192} height={192} className="border rounded-lg" />
-                        ) : (
-                            <div className="w-48 h-48 border rounded-lg bg-muted flex items-center justify-center">
-                                <p className="text-sm text-muted-foreground">Click to generate</p>
-                            </div>
-                        )}
-                        <div className="flex gap-2">
-                            <Button onClick={generateQRCode} variant="outline">
-                                <QrCode className="mr-2 h-4 w-4" />
-                                {qrCodeDataUrl ? 'Regenerate' : 'Generate'} QR Code
-                            </Button>
-                            {qrCodeDataUrl && (
-                                <a href={qrCodeDataUrl} download={`${editedShopName}-QRCode.png`}>
-                                    <Button>Download</Button>
-                                </a>
-                            )}
+                  <DialogTitle>Edit {editedShopName}</DialogTitle>
+                  <DialogDescription>Update your shop details, services, staff, and get your QR code here.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-6 py-4">
+                  <Card>
+                    <CardHeader><CardTitle>Shop Details</CardTitle></CardHeader>
+                    <CardContent className="grid gap-4">
+                        <div className="grid gap-2"><Label htmlFor="shop-name-edit">Shop Name</Label><Input id="shop-name-edit" value={editedShopName} onChange={(e) => setEditedShopName(e.target.value)} /></div>
+                        <div className="grid gap-2"><Label htmlFor="shop-address-edit">Shop Address</Label><Input id="shop-address-edit" value={editedShopAddress} onChange={(e) => setEditedShopAddress(e.target.value)} /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="opening-time">Opening Time</Label>
+                            <Input id="opening-time" type="time" value={editedOpeningTime} onChange={e => setEditedOpeningTime(e.target.value)} />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="closing-time">Closing Time</Label>
+                            <Input id="closing-time" type="time" value={editedClosingTime} onChange={e => setEditedClosingTime(e.target.value)} />
+                          </div>
                         </div>
                     </CardContent>
-                </Card>
-
-               <Card>
-                   <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
-                   <CardContent>
-                   {services.length > 0 ? (
-                       <Table>
-                           <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Price</TableHead><TableHead>Mins</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                           <TableBody>
-                               {services.map(s => (
-                                   <TableRow key={s.id}>
-                                       <TableCell>{s.name}</TableCell>
-                                       <TableCell>${s.price}</TableCell>
-                                       <TableCell>{s.duration_minutes}</TableCell>
-                                       <TableCell className="text-right">
-                                           <Button variant="ghost" size="icon" onClick={() => handleDeleteService(s.id)}>
-                                               <Trash2 className="h-4 w-4" />
-                                           </Button>
-                                       </TableCell>
-                                   </TableRow>
-                               ))}
-                           </TableBody>
-                       </Table>
-                   ) : (
-                       <div className="text-center p-6 border-2 border-dashed rounded-lg">
-                           <ListPlus className="mx-auto h-12 w-12 text-muted-foreground" />
-                           <h3 className="mt-4 text-lg font-semibold">No Services Added Yet</h3>
-                           <p className="mt-1 text-sm text-muted-foreground">
-                               Add your first service below to make it available for customers.
-                           </p>
-                       </div>
-                   )}
-                   </CardContent>
-                   <CardFooter className="flex flex-wrap gap-2 items-end">
-                       <div className="grid gap-1.5 flex-grow min-w-[120px]"><Label htmlFor="new-service-name">New Service</Label><Input id="new-service-name" placeholder="Name" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} /></div>
-                       <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-price">Price</Label><Input id="new-service-price" type="number" placeholder="$" value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} /></div>
-                       <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-duration">Mins</Label><Input id="new-service-duration" type="number" placeholder="Time" value={newServiceDuration} onChange={e => setNewServiceDuration(e.target.value)} /></div>
-                       <Button onClick={handleAddService}>Add</Button>
-                   </CardFooter>
-               </Card>
-               <Card>
-                   <CardHeader><CardTitle>Manage Staff</CardTitle></CardHeader>
-                   <CardContent>
-                   {barbers.length > 0 ? (
-                       <Table>
-                           <TableHeader><TableRow><TableHead>Staff Member</TableHead><TableHead></TableHead></TableRow></TableHeader>
-                           <TableBody>
-                               {barbers.map(b => (
-                                   <TableRow key={b.id}>
-                                       <TableCell className="flex items-center gap-4">
-                                           <Avatar>
-                                               <AvatarImage src={b.avatar_url || undefined} alt={b.name} />
-                                               <AvatarFallback>{b.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                           </Avatar>
-                                           {b.name}
-                                       </TableCell>
-                                       <TableCell className="text-right">
-                                           <Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}>
-                                               <Trash2 className="h-4 w-4" />
-                                           </Button>
-                                       </TableCell>
-                                   </TableRow>
-                               ))}
-                           </TableBody>
-                       </Table>
-                   ) : (
-                       <div className="text-center p-6 border-2 border-dashed rounded-lg">
-                           <UserPlus className="mx-auto h-12 w-12 text-muted-foreground" />
-                           <h3 className="mt-4 text-lg font-semibold">No Staff Added Yet</h3>
-                           <p className="mt-1 text-sm text-muted-foreground">
-                               Add your first staff member below. Each staff member will have their own queue.
-                           </p>
-                       </div>
-                   )}
-                   </CardContent>
-                   <CardFooter className="flex flex-col gap-4 items-start">
-                       <div className="grid gap-1.5 w-full">
-                           <Label htmlFor="new-barber-name">New Staff Member Name</Label>
-                           <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
-                       </div>
-                       <div className="grid gap-1.5 w-full">
-                           <Label htmlFor="new-barber-avatar">Avatar</Label>
-                           <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
-                       </div>
-                       <Button onClick={handleAddBarber}>Add Staff Member</Button>
-                   </CardFooter>
-               </Card>
-              </div>
-              <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
+                    <CardFooter><Button onClick={handleUpdateShopDetails}>Save Shop Details</Button></CardFooter>
+                  </Card>
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>Shop QR Code</CardTitle>
+                          <CardDescription>
+                              Customers can scan this code to go directly to your booking page.
+                          </CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex flex-col items-center justify-center gap-4">
+                          {qrCodeDataUrl ? (
+                              <Image src={qrCodeDataUrl} alt="Shop QR Code" width={192} height={192} className="border rounded-lg" />
+                          ) : (
+                              <div className="w-48 h-48 border rounded-lg bg-muted flex items-center justify-center">
+                                  <p className="text-sm text-muted-foreground">Click to generate</p>
+                              </div>
+                          )}
+                          <div className="flex gap-2">
+                              <Button onClick={generateQRCode} variant="outline">
+                                  <QrCode className="mr-2 h-4 w-4" />
+                                  {qrCodeDataUrl ? 'Regenerate' : 'Generate'} QR Code
+                              </Button>
+                              {qrCodeDataUrl && (
+                                  <a href={qrCodeDataUrl} download={`${editedShopName}-QRCode.png`}>
+                                      <Button>Download</Button>
+                                  </a>
+                              )}
+                          </div>
+                      </CardContent>
+                  </Card>
+                  <Card>
+                      <CardHeader><CardTitle>Manage Services</CardTitle></CardHeader>
+                      <CardContent>
+                      {services.length > 0 ? (
+                          <Table>
+                              <TableHeader><TableRow><TableHead>Service</TableHead><TableHead>Price</TableHead><TableHead>Mins</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                              <TableBody>
+                                  {services.map(s => (
+                                      <TableRow key={s.id}>
+                                          <TableCell>{s.name}</TableCell>
+                                          <TableCell>${s.price}</TableCell>
+                                          <TableCell>{s.duration_minutes}</TableCell>
+                                          <TableCell className="text-right">
+                                              <Button variant="ghost" size="icon" onClick={() => handleDeleteService(s.id)}>
+                                                  <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                          </TableCell>
+                                      </TableRow>
+                                  ))}
+                              </TableBody>
+                          </Table>
+                      ) : (
+                          <div className="text-center p-6 border-2 border-dashed rounded-lg">
+                              <ListPlus className="mx-auto h-12 w-12 text-muted-foreground" />
+                              <h3 className="mt-4 text-lg font-semibold">No Services Added Yet</h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                  Add your first service below to make it available for customers.
+                              </p>
+                          </div>
+                      )}
+                      </CardContent>
+                      <CardFooter className="flex flex-wrap gap-2 items-end">
+                          <div className="grid gap-1.5 flex-grow min-w-[120px]"><Label htmlFor="new-service-name">New Service</Label><Input id="new-service-name" placeholder="Name" value={newServiceName} onChange={e => setNewServiceName(e.target.value)} /></div>
+                          <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-price">Price</Label><Input id="new-service-price" type="number" placeholder="$" value={newServicePrice} onChange={e => setNewServicePrice(e.target.value)} /></div>
+                          <div className="grid gap-1.5 w-24"><Label htmlFor="new-service-duration">Mins</Label><Input id="new-service-duration" type="number" placeholder="Time" value={newServiceDuration} onChange={e => setNewServiceDuration(e.target.value)} /></div>
+                          <Button onClick={handleAddService}>Add</Button>
+                      </CardFooter>
+                  </Card>
+                  <Card>
+                      <CardHeader><CardTitle>Manage Staff</CardTitle></CardHeader>
+                      <CardContent>
+                      {barbers.length > 0 ? (
+                          <Table>
+                              <TableHeader><TableRow><TableHead>Staff Member</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                              <TableBody>
+                                  {barbers.map(b => (
+                                      <TableRow key={b.id}>
+                                          <TableCell className="flex items-center gap-4">
+                                              <Avatar>
+                                                  <AvatarImage src={b.avatar_url || undefined} alt={b.name} />
+                                                  <AvatarFallback>{b.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                              </Avatar>
+                                              {b.name}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                              <Button variant="ghost" size="icon" onClick={() => handleDeleteBarber(b.id)}>
+                                                  <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                          </TableCell>
+                                      </TableRow>
+                                  ))}
+                              </TableBody>
+                          </Table>
+                      ) : (
+                          <div className="text-center p-6 border-2 border-dashed rounded-lg">
+                              <UserPlus className="mx-auto h-12 w-12 text-muted-foreground" />
+                              <h3 className="mt-4 text-lg font-semibold">No Staff Added Yet</h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                  Add your first staff member below. Each staff member will have their own dedicated queue.
+                              </p>
+                          </div>
+                      )}
+                      </CardContent>
+                      <CardFooter className="flex flex-col gap-4 items-start">
+                          <div className="grid gap-1.5 w-full">
+                              <Label htmlFor="new-barber-name">New Staff Member Name</Label>
+                              <Input id="new-barber-name" placeholder="e.g., John Smith" value={newBarberName} onChange={e => setNewBarberName(e.target.value)} />
+                          </div>
+                          <div className="grid gap-1.5 w-full">
+                              <Label htmlFor="new-barber-avatar">Avatar</Label>
+                              <Input id="new-barber-avatar" type="file" accept="image/*" onChange={(e) => e.target.files && setNewBarberAvatarFile(e.target.files[0])} />
+                          </div>
+                          <Button onClick={handleAddBarber}>Add Staff Member</Button>
+                      </CardFooter>
+                  </Card>
+                </div>
+                <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
              </DialogContent>
         </Dialog>
-
+        
         <Card className="mb-6">
-            <CardHeader>
-                <CardTitle>Usage This Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-                {isTrial ? (
-                    <div>
-                        <p className="text-2xl font-bold">{trialUsages > 0 ? trialUsages : 0}</p>
-                        <p className="text-sm text-muted-foreground">free trial usages remaining.</p>
-                        {trialUsages <= 0 && <p className="text-sm text-red-500 mt-2">You have used all your free trial clients! Please upgrade to continue.</p>}
-                    </div>
-                ) : (
-                    <div>
-                        <p className="text-2xl font-bold">{billableEventsCount}</p>
-                        <p className="text-sm text-muted-foreground">billable clients this month.</p>
-                    </div>
-                )}
-            </CardContent>
+          <CardHeader>
+              <CardTitle>Usage</CardTitle>
+          </CardHeader>
+          <CardContent>
+              {(() => {
+                  if (totalEventCount < 100) {
+                      const remaining = 100 - totalEventCount;
+                      return (
+                          <div>
+                              <p className="text-2xl font-bold">{remaining}</p>
+                              <p className="text-sm text-muted-foreground">free trial usages remaining.</p>
+                          </div>
+                      );
+                  } else if (shop.subscription_status === 'trial' || shop.subscription_status === null) {
+                      return (
+                          <div>
+                              <p className="text-2xl font-bold text-destructive">0</p>
+                              <p className="text-sm text-muted-foreground">free trial usages remaining.</p>
+                              <p className="text-sm font-semibold text-destructive mt-2">
+                                  You have used all your free trial clients! Please upgrade to continue serving customers.
+                              </p>
+                          </div>
+                      );
+                  } else {
+                      return (
+                          <div>
+                              <p className="text-2xl font-bold">{monthlyBillableEventCount}</p>
+                              <p className="text-sm text-muted-foreground">billable clients this month.</p>
+                          </div>
+                      );
+                  }
+              })()}
+          </CardContent>
         </Card>
 
         <Separator />
@@ -882,7 +1052,7 @@ export default function DashboardPage() {
                               <div className="flex gap-1 flex-shrink-0">
                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenEditDialog(entry)}><Edit className="h-4 w-4" /></Button>
                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className="h-4 w-4" /></Button>
-                                <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber || (isTrial && trialUsages <= 0)}>Start</Button>
+                                <Button variant="outline" size="sm" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber || shop.subscription_status === 'past_due' || (totalEventCount >= 100 && (shop.subscription_status === 'trial' || shop.subscription_status === null))}>Start</Button>
                               </div>
                             </CardTitle>
                             <CardDescription className="text-xs pt-1">
@@ -900,7 +1070,6 @@ export default function DashboardPage() {
                 )
               })}
             </div>
-
             <div className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3">
               <Card className="bg-muted/50">
                 <CardHeader><CardTitle>Completed Today</CardTitle></CardHeader>
@@ -919,7 +1088,6 @@ export default function DashboardPage() {
                   )}
                 </CardContent>
               </Card>
-
               <Card className="bg-muted/50">
                 <CardHeader><CardTitle>No-Shows</CardTitle></CardHeader>
                 <CardContent>
@@ -949,7 +1117,6 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </div>
-
             <div className="mt-8 xl:col-span-3">
               <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
                 <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
@@ -967,7 +1134,6 @@ export default function DashboardPage() {
                   </Select>
                 </div>
               </div>
-
               {isAnalyticsLoading ? (
                   <p className="text-center text-muted-foreground">Loading analytics...</p>
               ) : analyticsData ? (
@@ -986,7 +1152,6 @@ export default function DashboardPage() {
                       <CardContent><p className="text-2xl font-bold">{(analyticsData.noShowRate || 0).toFixed(1)}%</p></CardContent>
                     </Card>
                   </div>
-
                   <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
                     <Card>
                       <CardHeader><CardTitle>Revenue per Staff Member</CardTitle></CardHeader>
@@ -998,7 +1163,6 @@ export default function DashboardPage() {
                             <YAxis type="category" dataKey="name" width={80} />
                             <Tooltip formatter={(value: number) => `$${Number(value).toFixed(2)}`} />
                             <Bar dataKey="revenue" name="Total Revenue">
-                              {/* --- FIX: Added type annotation for entry --- */}
                               {(analyticsData.barberRevenueData || []).map((entry: { name: string }) => (
                                 <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
                               ))}
@@ -1024,7 +1188,6 @@ export default function DashboardPage() {
                                     nameKey="name"
                                     label={({ name, clients }) => `${name}: ${clients}`}
                                 >
-                                    {/* --- FIX: Added type annotation for entry --- */}
                                     {(analyticsData.barberClientData || []).map((entry: { name: string }) => (
                                         <Cell key={`cell-${entry.name}`} fill={barberColorMap[entry.name] || '#8884d8'} />
                                     ))}
@@ -1044,7 +1207,6 @@ export default function DashboardPage() {
           </>
         )}
       </div>
-
       <Dialog open={isEditQueueEntryDialogOpen} onOpenChange={setIsEditQueueEntryDialogOpen}>
         <DialogContent>
           <DialogHeader>

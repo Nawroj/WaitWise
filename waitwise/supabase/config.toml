@@ -20,3 +20,47 @@ entrypoint = "./functions/notify-customer/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/notify-customer/*.html" ]
+
+[functions.create-pin-customer]
+enabled = true
+verify_jwt = true
+import_map = "./functions/create-pin-customer/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/create-pin-customer/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/create-pin-customer/*.html" ]
+
+[functions.create-charge]
+enabled = true
+verify_jwt = true
+import_map = "./functions/create-charge/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/create-charge/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/create-charge/*.html" ]
+
+[functions.pin-payments-webhook-handler]
+enabled = true
+verify_jwt = true
+import_map = "./functions/pin-payments-webhook-handler/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/pin-payments-webhook-handler/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/pin-payments-webhook-handler/*.html" ]
+
+[functions.retry-payment]
+enabled = true
+verify_jwt = true
+import_map = "./functions/retry-payment/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/retry-payment/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/retry-payment/*.html" ]
