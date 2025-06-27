@@ -1,139 +1,163 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { MobileNav } from "@/components/ui/MobileNav";
 import { BarChart2, QrCode, Users, Clock, ThumbsUp, TrendingUp } from "lucide-react";
+import { motion } from "framer-motion";
+
+// Animation variants for Framer Motion
+const fadeIn = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.6, ease: "easeInOut" },
+};
+
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
 
 export default function HomePage() {
   return (
     <div className="flex flex-col items-center min-h-screen bg-background text-foreground">
       {/* --- HEADER --- */}
-      <header className="w-full p-4 flex justify-between items-center max-w-6xl mx-auto">
-        <h1 className="text-xl font-bold">WaitWise</h1>
-        <nav className="hidden md:flex items-center gap-4">
-          <Link href="/pricing"><Button variant="ghost">Pricing</Button></Link>
-          <Link href="/login"><Button variant="outline">Owner Login</Button></Link>
-          <Link href="/shops"><Button>Join a Queue</Button></Link>
+      <header className="w-full p-4 flex justify-between items-center max-w-7xl mx-auto border-b border-border/50">
+        <motion.h1 
+          className="text-2xl font-bold text-primary"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          WaitWise
+        </motion.h1>
+        {/* --- MODIFIED NAV --- */}
+        <nav className="hidden md:flex items-center gap-2">
+          <Link href="/pricing"><Button variant="ghost" className="hover:text-primary transition-colors">Pricing</Button></Link>
+          <Link href="/login"><Button variant="ghost" className="hover:text-primary transition-colors">Owner Login</Button></Link>
+          <Link href="/shops"><Button className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105">Join a Queue</Button></Link>
         </nav>
         <div className="md:hidden"><MobileNav /></div>
       </header>
 
       <main className="flex-grow w-full">
         {/* --- HERO SECTION --- */}
-        <section className="w-full py-20 md:py-24 lg:py-32">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl">
+        <section className="w-full py-24 md:py-32 lg:py-40">
+          <motion.div 
+            className="container mx-auto px-4 text-center"
+            initial="initial"
+            animate="animate"
+            variants={staggerContainer}
+          >
+            <motion.h2 
+              className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl"
+              variants={fadeIn}
+            >
               The Smart Way to Manage Your Waitlist
-            </h2>
-            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-4">
+            </motion.h2>
+            <motion.p 
+              className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-6"
+              variants={fadeIn}
+            >
               Great service starts before they arrive. Ditch the paper and give your customers the freedom to join the queue from anywhere.
-            </p>
-            <div className="mt-8">
+            </motion.p>
+            <motion.div 
+              className="mt-10"
+              variants={fadeIn}
+            >
               <Link href="/login">
-                <Button size="lg">Create Your Shop</Button>
+                <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-primary/20">
+                  Create Your Shop
+                </Button>
               </Link>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </section>
 
         {/* --- HOW IT WORKS SECTION --- */}
-        <section id="how-it-works" className="w-full py-20 bg-muted/50">
-          <div className="container mx-auto px-4">
-            <div className="mx-auto max-w-3xl text-center">
+        <section id="how-it-works" className="w-full py-20 bg-card border-y border-border">
+          <motion.div 
+            className="container mx-auto px-4"
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={staggerContainer}
+          >
+            <motion.div className="mx-auto max-w-3xl text-center" variants={fadeIn}>
               <h3 className="text-3xl font-bold">How It Works</h3>
               <p className="mt-2 text-muted-foreground">
                 Get up and running in three simple steps.
               </p>
-            </div>
-            <div className="mx-auto mt-12 grid max-w-5xl items-start gap-8 text-left md:grid-cols-3 lg:gap-12">
-              <div className="flex items-start gap-4">
-                <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">1</div>
-                <div>
-                  <h4 className="font-bold text-lg">Set Up Your Shop</h4>
-                  <p className="text-muted-foreground">Create your account and add your business details, services, and staff members in minutes.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">2</div>
-                <div>
-                  <h4 className="font-bold text-lg">Customers Join Online</h4>
-                  <p className="text-muted-foreground">Customers scan a QR code or visit your public page to join the queue and see real-time wait estimates.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="bg-primary text-primary-foreground rounded-full h-8 w-8 flex items-center justify-center font-bold flex-shrink-0">3</div>
-                <div>
-                  <h4 className="font-bold text-lg">Manage the Flow</h4>
-                  <p className="text-muted-foreground">Use your live dashboard to manage the queue, update customer statuses, and keep everything running smoothly.</p>
-                </div>
-              </div>
-            </div>
-          </div>
+            </motion.div>
+            <motion.div 
+              className="mx-auto mt-16 grid max-w-5xl items-start gap-10 text-left md:grid-cols-3 lg:gap-12"
+              variants={staggerContainer}
+            >
+              {[
+                { title: "Set Up Your Shop", description: "Create your account and add your business details, services, and staff members in minutes." },
+                { title: "Customers Join Online", description: "Customers scan a QR code or visit your public page to join the queue and see real-time wait estimates." },
+                { title: "Manage the Flow", description: "Use your live dashboard to manage the queue, update customer statuses, and keep everything running smoothly." }
+              ].map((step, i) => (
+                <motion.div key={i} className="flex items-start gap-4" variants={fadeIn}>
+                  <div className="bg-primary text-primary-foreground rounded-full h-10 w-10 flex items-center justify-center font-bold flex-shrink-0 text-lg">
+                    {i + 1}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xl">{step.title}</h4>
+                    <p className="text-muted-foreground mt-1">{step.description}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.div>
         </section>
 
-        {/* --- KEY FEATURES SECTION --- */}
+        {/* --- FEATURES & BENEFITS SECTION --- */}
         <section id="features" className="w-full py-20">
-          <div className="container mx-auto px-4">
-            <div className="mx-auto max-w-3xl text-center">
-              <h3 className="text-3xl font-bold">Everything You Need to Manage Your Waitlist</h3>
+          <motion.div 
+            className="container mx-auto px-4"
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={staggerContainer}
+          >
+            <motion.div className="mx-auto max-w-3xl text-center mb-16" variants={fadeIn}>
+              <h3 className="text-3xl font-bold">Everything You Need for a Seamless Flow</h3>
+            </motion.div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[
+                { icon: <Users className="h-10 w-10 text-primary" />, title: "Live Queue Management", description: "View and manage separate queues for each barber in real-time." },
+                { icon: <QrCode className="h-10 w-10 text-primary" />, title: "Custom QR Code", description: "Generate a unique QR code for your shop that customers can scan instantly." },
+                { icon: <BarChart2 className="h-10 w-10 text-primary" />, title: "Daily Analytics", description: "Track key metrics like revenue and clients per barber with simple, clear charts." },
+                { icon: <TrendingUp className="h-10 w-10 text-primary" />, title: "Reduce Walk-outs", description: "Give customers the freedom to wait wherever they want, reducing perceived wait times." },
+                { icon: <ThumbsUp className="h-10 w-10 text-primary" />, title: "Improve Customer Experience", description: "A transparent, modern queuing process shows you value your customers' time." },
+                { icon: <Clock className="h-10 w-10 text-primary" />, title: "Increase Staff Efficiency", description: "Focus on providing great service instead of managing a crowded waiting area." }
+              ].map((feature, i) => (
+                <motion.div key={i} className="flex flex-col items-center text-center gap-4 p-6 rounded-lg border border-transparent hover:border-border transition-all hover:-translate-y-1" variants={fadeIn}>
+                  {feature.icon}
+                  <h4 className="font-bold text-xl mt-2">{feature.title}</h4>
+                  <p className="text-muted-foreground text-sm">{feature.description}</p>
+                </motion.div>
+              ))}
             </div>
-            <div className="mx-auto mt-12 grid max-w-5xl gap-8 md:grid-cols-3 lg:gap-12 text-center">
-              <div className="flex flex-col items-center gap-2 p-4">
-                <Users className="h-10 w-10 text-primary" />
-                <h4 className="font-bold text-lg mt-2">Live Queue Management</h4>
-                <p className="text-muted-foreground">View and manage separate queues for each barber in real-time. Mark customers as &quot;in progress,&quot; &quot;done,&quot; or &quot;no-show.&quot;</p>
-              </div>
-              <div className="flex flex-col items-center gap-2 p-4">
-                <QrCode className="h-10 w-10 text-primary" />
-                <h4 className="font-bold text-lg mt-2">Custom QR Code</h4>
-                <p className="text-muted-foreground">Generate a unique QR code for your shop that customers can scan to instantly access your queue page.</p>
-              </div>
-              <div className="flex flex-col items-center gap-2 p-4">
-                <BarChart2 className="h-10 w-10 text-primary" />
-                <h4 className="font-bold text-lg mt-2">Daily Analytics</h4>
-                <p className="text-muted-foreground">Track key metrics like revenue and clients per barber with simple, clear charts to understand your daily performance.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* --- BENEFITS SECTION --- */}
-        <section id="benefits" className="w-full py-20 bg-muted/50">
-          <div className="container mx-auto px-4">
-            <div className="mx-auto max-w-3xl text-center">
-              <h3 className="text-3xl font-bold">Boost Efficiency and Customer Satisfaction</h3>
-            </div>
-            <div className="mx-auto mt-12 grid max-w-5xl gap-8 md:grid-cols-3 lg:gap-12 text-center">
-              <div className="flex flex-col items-center gap-2 p-4">
-                <TrendingUp className="h-10 w-10 text-primary" />
-                <h4 className="font-bold text-lg mt-2">Reduce Walk-outs</h4>
-                <p className="text-muted-foreground">Give customers the freedom to wait wherever they want, reducing perceived wait times and keeping them from leaving.</p>
-              </div>
-              <div className="flex flex-col items-center gap-2 p-4">
-                <ThumbsUp className="h-10 w-10 text-primary" />
-                <h4 className="font-bold text-lg mt-2">Improve Customer Experience</h4>
-                <p className="text-muted-foreground">A transparent, modern queuing process shows you value your customers&apos; time, improving their overall satisfaction.</p>
-              </div>
-              <div className="flex flex-col items-center gap-2 p-4">
-                <Clock className="h-10 w-10 text-primary" />
-                <h4 className="font-bold text-lg mt-2">Increase Staff Efficiency</h4>
-                <p className="text-muted-foreground">Your staff can focus on providing great service instead of managing a crowded waiting area and answering &quot;how much longer?&quot;</p>
-              </div>
-            </div>
-          </div>
+          </motion.div>
         </section>
       </main>
 
       {/* --- FOOTER --- */}
-      <footer className="w-full p-8 border-t">
-        <div className="max-w-6xl mx-auto text-center">
+      <footer className="w-full p-8 border-t border-border/50">
+        <div className="max-w-7xl mx-auto text-center">
           <div className="mb-4">
             <nav className="flex justify-center gap-6">
-              <Link href="/terms-of-service" className="text-sm text-muted-foreground hover:text-foreground">Terms of Service</Link>
-              <Link href="/privacy-policy" className="text-sm text-muted-foreground hover:text-foreground">Privacy Policy</Link>
+              <Link href="/terms-of-service" className="text-sm text-muted-foreground hover:text-primary transition-colors">Terms of Service</Link>
+              <Link href="/privacy-policy" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacy Policy</Link>
             </nav>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} WaitWise. All rights reserved.</p>
+            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} WaitWise. All rights reserved.</p>
           </div>
         </div>
       </footer>

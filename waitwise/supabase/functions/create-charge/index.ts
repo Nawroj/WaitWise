@@ -1,22 +1,22 @@
+// In supabase/functions/create-charge/index.ts
 import { corsHeaders } from '../_shared/cors.ts'
 
-// Use an environment variable to switch between test and live Pin Payments API
 const PIN_API_HOST = Deno.env.get('PIN_API_ENVIRONMENT') === 'live'
   ? 'https://api.pinpayments.com'
   : 'https://test-api.pinpayments.com';
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // These values will be sent from our database function in the next phase
-    const { customer_token, amount, shop_id } = await req.json();
+    // FIX: Added 'email' to the expected parameters
+    const { customer_token, amount, shop_id, email } = await req.json();
 
-    if (!customer_token || !amount || !shop_id) {
-      throw new Error('Customer token, amount, and shop_id are required.');
+    // FIX: Updated validation to require email
+    if (!customer_token || !amount || !shop_id || !email) {
+      throw new Error('Customer token, amount, shop_id, and email are required.');
     }
 
     const secretKey = Deno.env.get('PIN_SECRET_KEY');
@@ -24,10 +24,11 @@ Deno.serve(async (req) => {
 
     const authHeader = `Basic ${btoa(secretKey + ':')}`;
     
-    // Construct the payload for the Pin Payments Charge API
     const chargePayload = {
+      // FIX: Added email to the charge payload
+      email: email,
       description: `Monthly usage charge for shop ${shop_id}`,
-      amount: amount, // Amount must be in cents
+      amount: amount,
       currency: 'AUD',
       customer_token: customer_token,
       metadata: {
@@ -35,7 +36,6 @@ Deno.serve(async (req) => {
       }
     };
 
-    // Make the request to Pin Payments
     const response = await fetch(`${PIN_API_HOST}/1/charges`, {
       method: 'POST',
       headers: {
@@ -48,9 +48,7 @@ Deno.serve(async (req) => {
     const responseData = await response.json();
 
     if (!response.ok) {
-      // The charge failed (e.g., card declined, insufficient funds)
       console.error('Charge failed for', customer_token, responseData.error_description);
-      // Return a specific error structure that our system can understand
       return new Response(JSON.stringify({ 
         success: false, 
         charge_token: null,
@@ -61,7 +59,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // The charge was successful
     return new Response(JSON.stringify({ 
       success: true, 
       charge_token: responseData.response.token,
@@ -71,7 +68,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error("Critical error in create-charge function:", error.message);
+    console.error("Error in create-charge:", error.message);
     return new Response(JSON.stringify({ success: false, charge_token: null, error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
