@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -24,7 +24,7 @@ const staggerContainer = {
 export default function HomePage() {
   return (
     <div className="flex flex-col items-center min-h-screen bg-background text-foreground">
-      {/* --- HEADER --- */}
+      {/* Header section with branding and navigation */}
       <header className="w-full p-4 flex justify-between items-center max-w-7xl mx-auto border-b border-border/50">
         <motion.h1 
           className="text-2xl font-bold text-primary"
@@ -34,17 +34,18 @@ export default function HomePage() {
         >
           WaitWise
         </motion.h1>
-        {/* --- MODIFIED NAV --- */}
+        {/* Desktop navigation */}
         <nav className="hidden md:flex items-center gap-2">
           <Link href="/pricing"><Button variant="ghost" className="hover:text-primary transition-colors">Pricing</Button></Link>
           <Link href="/login"><Button variant="ghost" className="hover:text-primary transition-colors">Owner Login</Button></Link>
           <Link href="/shops"><Button className="bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105">Join a Queue</Button></Link>
         </nav>
+        {/* Mobile navigation toggle */}
         <div className="md:hidden"><MobileNav /></div>
       </header>
 
       <main className="flex-grow w-full">
-        {/* --- HERO SECTION --- */}
+        {/* Hero section: Main headline and call to action */}
         <section className="w-full py-24 md:py-32 lg:py-40">
           <motion.div 
             className="container mx-auto px-4 text-center"
@@ -77,7 +78,7 @@ export default function HomePage() {
           </motion.div>
         </section>
 
-        {/* --- HOW IT WORKS SECTION --- */}
+        {/* "How It Works" section: Explains the process in three steps */}
         <section id="how-it-works" className="w-full py-20 bg-card border-y border-border">
           <motion.div 
             className="container mx-auto px-4"
@@ -96,6 +97,7 @@ export default function HomePage() {
               className="mx-auto mt-16 grid max-w-5xl items-start gap-10 text-left md:grid-cols-3 lg:gap-12"
               variants={staggerContainer}
             >
+              {/* Individual steps for how WaitWise works */}
               {[
                 { title: "Set Up Your Shop", description: "Create your account and add your business details, services, and staff members in minutes." },
                 { title: "Customers Join Online", description: "Customers scan a QR code or visit your public page to join the queue and see real-time wait estimates." },
@@ -115,7 +117,7 @@ export default function HomePage() {
           </motion.div>
         </section>
 
-        {/* --- FEATURES & BENEFITS SECTION --- */}
+        {/* Features & Benefits section: Highlights key advantages of using WaitWise */}
         <section id="features" className="w-full py-20">
           <motion.div 
             className="container mx-auto px-4"
@@ -128,6 +130,7 @@ export default function HomePage() {
               <h3 className="text-3xl font-bold">Everything You Need for a Seamless Flow</h3>
             </motion.div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {/* List of features with icons, titles, and descriptions */}
               {[
                 { icon: <Users className="h-10 w-10 text-primary" />, title: "Live Queue Management", description: "View and manage separate queues for each barber in real-time." },
                 { icon: <QrCode className="h-10 w-10 text-primary" />, title: "Custom QR Code", description: "Generate a unique QR code for your shop that customers can scan instantly." },
@@ -147,7 +150,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      {/* --- FOOTER --- */}
+      {/* Footer section with legal links and copyright */}
       <footer className="w-full p-8 border-t border-border/50">
         <div className="max-w-7xl mx-auto text-center">
           <div className="mb-4">

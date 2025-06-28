@@ -12,6 +12,7 @@ type Shop = {
   name: string;
   address: string;
   owner_id: string;
+  email: string | null; // ADDED: Email field to the Shop type
   subscription_status: 'trial' | 'active' | 'past_due' | null;
   stripe_customer_id: string | null;
   opening_time: string | null;
@@ -42,6 +43,15 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
         throw new Error("Could not find user. Please log in again.")
       }
 
+      // --- START CHANGE ---
+      // Get the user's email from the authenticated session
+      const userEmail = user.email;
+
+      if (!userEmail) {
+        throw new Error("Could not retrieve user email. Please ensure your account has an email address.");
+      }
+      // --- END CHANGE ---
+
       const { data: newShop, error: insertError } = await supabase
         .from('shops')
         .insert({
@@ -49,7 +59,9 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
           address: shopAddress,
           opening_time: openingTime,
           closing_time: closingTime,
-          owner_id: user.id
+          owner_id: user.id,
+          email: userEmail, // ADDED: Save the user's email to the shops table
+          subscription_status: 'trial' // Assuming new shops start on trial
         })
         .select()
         .single()
@@ -63,7 +75,6 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
       }
 
     } catch (err) {
-      // --- FIX 1: Type-safe error handling ---
       if (err instanceof Error) {
         setError(err.message)
       } else {
@@ -81,7 +92,6 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Welcome to WaitWise!</CardTitle>
           <CardDescription>
-            {/* --- FIX 2: Escaped the apostrophe in "Let's" --- */}
             Let&apos;s get your business set up. Fill in the details below to create your shop.
           </CardDescription>
         </CardHeader>

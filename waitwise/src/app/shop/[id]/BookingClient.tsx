@@ -16,7 +16,7 @@ import { Clock, Timer } from 'lucide-react'
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 
-// Animation Variants
+// Animation Variants for UI elements
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeInOut" } },
@@ -30,7 +30,7 @@ const staggerContainer = {
   },
 };
 
-// Type definitions
+// Type definitions for props and state
 type Shop = {
     id: string;
     name: string;
@@ -81,28 +81,29 @@ interface BookingClientProps {
     barbers: Barber[];
 }
 
-
 export default function BookingClient({ shop, services, barbers }: BookingClientProps) {
   const supabase = createClient();
 
+  // State variables for form inputs and UI display
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
-  const [loading, setLoading] =useState(false);
-  const [queueInfo, setQueueInfo] = useState<{ position: number; name: string } | null>(null);
-  const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({});
-  const [waitTimes, setWaitTimes] = useState<Record<string, number>>({});
-  const [checkName, setCheckName] = useState('');
-  const [checkPhone, setCheckPhone] = useState('');
-  const [isChecking, setIsChecking] = useState(false);
-  const [checkedPositionInfo, setCheckedPositionInfo] = useState<string | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] =useState(false); // General loading state for form submission
+  const [queueInfo, setQueueInfo] = useState<{ position: number; name: string } | null>(null); // Info after joining queue
+  const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({}); // Number of clients waiting per barber
+  const [waitTimes, setWaitTimes] = useState<Record<string, number>>({}); // Estimated wait time per barber
+  const [checkName, setCheckName] = useState(''); // State for checking queue position
+  const [checkPhone, setCheckPhone] = useState(''); // State for checking queue position
+  const [isChecking, setIsChecking] = useState(false); // Loading state for checking queue position
+  const [checkedPositionInfo, setCheckedPositionInfo] = useState<string | null>(null); // Result of queue position check
+  const [isDialogOpen, setIsDialogOpen] = useState(false); // State for the "check position" dialog
+  const [isSubmitting, setIsSubmitting] = useState(false); // Prevents multiple submissions
 
+  // Determine if the shop is currently open based on operating hours
   const isShopOpen = useMemo(() => {
     if (!shop.opening_time || !shop.closing_time) {
-        return true;
+        return true; // Assume open if times are not defined
     }
     const now = new Date();
     const [openingHours, openingMinutes] = shop.opening_time.split(':').map(Number);
@@ -114,6 +115,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     return now >= openingDate && now <= closingDate;
   }, [shop.opening_time, shop.closing_time]);
 
+  // Format time strings for display (e.g., 9:00 AM)
   const formatTime = (timeString: string | null) => {
     if (!timeString) return 'N/A';
     const [hours, minutes] = timeString.split(':');
@@ -123,26 +125,31 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     return `${formattedHour}:${minutes} ${ampm}`;
   };
 
+  // Validate Australian phone numbers
   const isValidAustralianPhone = (phone: string) => /^(04|02|03|07|08)\d{8}$/.test(phone.replace(/\s/g, ''));
+
+  // Calculate total price of selected services
   const totalPrice = useMemo(() => selectedServices.reduce((sum, service) => sum + service.price, 0), [selectedServices]);
 
+  // Handle selection/deselection of services
   const handleServiceSelect = (service: Service) => {
     setSelectedServices(prev => prev.some(s => s.id === service.id) ? prev.filter(s => s.id !== service.id) : [...prev, service]);
   };
 
+  // Fetch and update real-time queue details (waiting counts and wait times)
   const fetchQueueDetails = useCallback(async () => {
     const { data, error } = await supabase
         .from('queue_entries')
         .select(`barber_id, queue_entry_services (services (duration_minutes))`)
         .eq('shop_id', shop.id)
-        .eq('status', 'waiting');
+        .eq('status', 'waiting'); // Only consider waiting clients for estimates
 
     if (error) {
         console.error("Error fetching queue details:", error);
         return;
     }
 
-    // Initialize wait times, factoring in any active breaks
+    // Initialize wait times, accounting for barbers on break
     const newWaitTimes: Record<string, number> = {};
     const now = new Date();
     barbers.forEach(barber => {
@@ -150,12 +157,12 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             const breakEndTime = new Date(barber.break_end_time);
             if (breakEndTime > now) {
                 const remainingBreakMs = breakEndTime.getTime() - now.getTime();
-                newWaitTimes[barber.id] = Math.ceil(remainingBreakMs / 60000);
+                newWaitTimes[barber.id] = Math.ceil(remainingBreakMs / 60000); // Convert ms to minutes
             }
         }
     });
 
-    // Add service durations for waiting clients
+    // Calculate waiting counts and add service durations to wait times
     const newCounts: Record<string, number> = {};
     for (const entry of data as unknown as FetchedQueueEntry[]) {
       if (entry.barber_id) {
@@ -168,26 +175,28 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     }
     setWaitingCounts(newCounts);
     setWaitTimes(newWaitTimes);
-  }, [supabase, shop.id, barbers]);
+  }, [supabase, shop.id, barbers]); // Dependencies for useCallback
 
+  // Set up real-time subscriptions for queue updates
   useEffect(() => {
-    fetchQueueDetails();
+    fetchQueueDetails(); // Initial fetch
     const channel = supabase
         .channel(`booking_queue_realtime_for_${shop.id}`)
         .on('postgres_changes', {
-            event: '*',
+            event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
             schema: 'public',
             table: 'queue_entries',
-            filter: `shop_id=eq.${shop.id}`
+            filter: `shop_id=eq.${shop.id}` // Filter for the current shop
         }, () => {
-            fetchQueueDetails();
+            fetchQueueDetails(); // Re-fetch data on any change
         })
         .subscribe();
     return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(channel); // Clean up subscription on unmount
     };
-  }, [supabase, shop.id, fetchQueueDetails]);
+  }, [supabase, shop.id, fetchQueueDetails]); // Dependencies for useEffect
 
+  // Handle client joining the queue
   const handleJoinQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting || !selectedBarber || selectedServices.length === 0 || !clientName || !clientPhone) {
@@ -202,16 +211,19 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     setIsSubmitting(true);
     try {
       let clientId = null;
+      // Check if client already exists for this shop
       const { data: existingClient } = await supabase.from('clients').select('id').eq('phone', clientPhone).eq('shop_id', shop.id).single();
 
       if (existingClient) {
           clientId = existingClient.id;
       } else {
+        // Create new client if not found
         const { data: newClient, error: newClientError } = await supabase.from('clients').insert({ name: clientName, phone: clientPhone, shop_id: shop.id }).select('id').single();
         if (newClientError) throw newClientError;
         clientId = newClient.id;
       }
 
+      // Call Supabase RPC function to create queue entry and link services
       const { data: queueData, error: rpcError } = await supabase.rpc('create_queue_entry_with_services', {
           p_shop_id: shop.id,
           p_barber_id: selectedBarber.id,
@@ -225,9 +237,11 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
       const newEntry = queueData as NewQueueEntryData;
       if (newEntry) {
+        // Determine client's position in the queue
         const { data: waitingQueue } = await supabase.from('queue_entries').select('id, queue_position').eq('barber_id', selectedBarber.id).eq('status', 'waiting').order('queue_position', { ascending: true });
         const position = waitingQueue ? waitingQueue.findIndex(entry => entry.id === newEntry.id) + 1 : 0;
         setQueueInfo({ position: position > 0 ? position : (waitingQueue?.length ?? 1), name: newEntry.client_name });
+        // Clear form fields
         setSelectedServices([]);
         setSelectedBarber(null);
         setClientName('');
@@ -238,10 +252,12 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         toast.error(`Error joining queue: ${error instanceof Error ? error.message : 'An unknown error occurred.'}`);
     } finally {
         setLoading(false);
+        // Add a small delay to prevent rapid re-submissions
         setTimeout(() => setIsSubmitting(false), 3000);
     }
   };
 
+  // Handle client checking their position in the queue
   const handleCheckPosition = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkName || !checkPhone) {
@@ -255,6 +271,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
     setIsChecking(true);
     setCheckedPositionInfo(null);
 
+    // Find the latest queue entry for the given client name and phone
     const { data: userEntry, error: userEntryError } = await supabase
         .from('queue_entries')
         .select(`id, status, barbers ( id, name )`)
@@ -271,12 +288,14 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         return;
     }
 
+    // If client is currently being served
     if (userEntry.status === 'in_progress') {
         setCheckedPositionInfo(`You're up next with ${userEntry.barbers?.name || 'a staff member'}.`);
         setIsChecking(false);
         return;
     }
 
+    // Get the current waiting queue for the barber the client is assigned to
     const { data: waitingQueue } = await supabase
         .from('queue_entries')
         .select('id')
@@ -290,6 +309,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
         return;
     }
 
+    // Calculate client's position
     const position = waitingQueue.findIndex(entry => entry.id === userEntry.id) + 1;
     if (position > 0) {
         setCheckedPositionInfo(`You are number ${position} in the queue for ${userEntry.barbers?.name}.`);
@@ -301,33 +321,35 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
 
   return (
     <div className="container mx-auto max-w-2xl p-4 md:p-8">
+      {/* Shop Header: Logo/Name, Address */}
       <motion.header
-  variants={fadeIn}
-  initial="initial"
-  animate="animate"
-  className="mb-6 text-center"
->
-  {shop.logo_url ? (
-    <div className="flex items-center justify-center mb-3"> {/* spacing below logo */}
-      <Image
-        src={shop.logo_url}
-        alt={`${shop.name} Logo`}
-        width={144}
-        height={36}
-        className="object-contain dark:invert"
-        priority
-      />
-    </div>
-  ) : (
-    <h1 className="text-3xl font-bold tracking-tight text-primary mb-3">{shop.name}</h1>
-  )}
-
-  <p className="text-muted-foreground">{shop.address}</p>
-</motion.header>
+        variants={fadeIn}
+        initial="initial"
+        animate="animate"
+        className="mb-6 text-center"
+      >
+        {shop.logo_url ? (
+          <div className="flex items-center justify-center mb-3">
+            <Image
+              src={shop.logo_url}
+              alt={`${shop.name} Logo`}
+              width={144}
+              height={36}
+              className="object-contain dark:invert"
+              priority
+            />
+          </div>
+        ) : (
+          <h1 className="text-3xl font-bold tracking-tight text-primary mb-3">{shop.name}</h1>
+        )}
+        <p className="text-muted-foreground">{shop.address}</p>
+      </motion.header>
 
       <Separator className="bg-border/50" />
 
+      {/* Conditional Rendering: Shop Closed, Queue Info, or Booking Form */}
       {!isShopOpen ? (
+        // Display if shop is closed
         <motion.div variants={fadeIn} initial="initial" animate="animate">
           <Card className="mt-8 text-center p-8 bg-card border-border">
               <CardHeader>
@@ -342,6 +364,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
           </Card>
         </motion.div>
       ) : queueInfo ? (
+        // Display after client successfully joins the queue
         <motion.div variants={fadeIn} initial="initial" animate="animate" className="mt-8">
             <Alert className="mt-8 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
                 <AlertTitle className="text-green-800 dark:text-green-300">You&apos;re in the queue!</AlertTitle>
@@ -384,7 +407,9 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
             </Alert>
         </motion.div>
       ) : (
+        // Main booking form
         <motion.form onSubmit={handleJoinQueue} className="mt-8 space-y-10" initial="initial" animate="animate" variants={staggerContainer}>
+            {/* Step 1: Select Services */}
             <motion.div className="space-y-4" variants={fadeIn}>
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">1. Select Service(s)</h2>
@@ -401,45 +426,48 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
               </motion.div>
             </motion.div>
 
+            {/* Step 2: Select a Staff Member */}
             <motion.div className="space-y-4" variants={fadeIn}>
               <h2 className="text-xl font-semibold">2. Select a Staff Member</h2>
-              <motion.div className="grid grid-cols-2 md:grid-cols-3 gap-4" variants={staggerContainer}>{barbers.map(barber => {
-                const waitingCount = waitingCounts[barber.id] || 0;
-                const waitTime = waitTimes[barber.id] || 0;
-                return (
-                  <motion.div key={barber.id} variants={fadeIn} className="relative">
-                    {barber.is_on_break && (
-                        <div className="absolute inset-0 bg-black/50 rounded-lg z-10 flex items-center justify-center">
-                            <Badge variant="destructive">ON BREAK</Badge>
-                        </div>
-                    )}
-                    <Card
-                        className={`cursor-pointer transition-all h-full bg-card border-border hover:border-primary/80 ${selectedBarber?.id === barber.id ? 'border-primary ring-2 ring-primary/50' : ''}`}
-                        onClick={() => !barber.is_on_break && setSelectedBarber(barber)}
-                    >
-                      <CardContent className="flex flex-col items-center justify-center p-4 gap-2 text-center">
-                        <Avatar className="w-20 h-20 border-2 border-border">
-                            <AvatarImage src={barber.avatar_url || undefined} alt={barber.name} />
-                            <AvatarFallback>{barber.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                        </Avatar>
-                        <p className="font-medium">{barber.name}</p>
-                        <Badge variant={waitingCount > 0 ? "default" : "secondary"} className="mt-1 transition-colors">
-                          {waitingCount} waiting
-                        </Badge>
-                        {waitTime > 0 && (
-                          <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-1.5">
-                            <Timer className="h-3 w-3" />
-                            ~{waitTime} min wait
+              <motion.div className="grid grid-cols-2 md:grid-cols-3 gap-4" variants={staggerContainer}>
+                {barbers.map(barber => {
+                  const waitingCount = waitingCounts[barber.id] || 0;
+                  const waitTime = waitTimes[barber.id] || 0;
+                  return (
+                    <motion.div key={barber.id} variants={fadeIn} className="relative">
+                      {barber.is_on_break && (
+                          <div className="absolute inset-0 bg-black/50 rounded-lg z-10 flex items-center justify-center">
+                              <Badge variant="destructive">ON BREAK</Badge>
                           </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                )
-              })}
+                      )}
+                      <Card
+                          className={`cursor-pointer transition-all h-full bg-card border-border hover:border-primary/80 ${selectedBarber?.id === barber.id ? 'border-primary ring-2 ring-primary/50' : ''}`}
+                          onClick={() => !barber.is_on_break && setSelectedBarber(barber)}
+                      >
+                        <CardContent className="flex flex-col items-center justify-center p-4 gap-2 text-center">
+                          <Avatar className="w-20 h-20 border-2 border-border">
+                              <AvatarImage src={barber.avatar_url || undefined} alt={barber.name} />
+                              <AvatarFallback>{barber.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                          </Avatar>
+                          <p className="font-medium">{barber.name}</p>
+                          <Badge variant={waitingCount > 0 ? "default" : "secondary"} className="mt-1 transition-colors">
+                            {waitingCount} waiting
+                          </Badge>
+                          {waitTime > 0 && (
+                            <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-1.5">
+                              <Timer className="h-3 w-3" />
+                              ~{waitTime} min wait
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )
+                })}
               </motion.div>
             </motion.div>
 
+            {/* Step 3: Your Details */}
             <motion.div className="space-y-4" variants={fadeIn}>
               <h2 className="text-xl font-semibold">3. Your Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -454,6 +482,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
               </div>
             </motion.div>
 
+            {/* Join Queue Button */}
             <motion.div variants={fadeIn}>
               <Button type="submit" size="lg" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105" disabled={loading || isSubmitting}>
                 {isSubmitting ? 'Joining...' : 'Join Queue'}

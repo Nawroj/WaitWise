@@ -14,12 +14,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [username, setUsername] = useState('')
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(false) // State to toggle between sign-in and sign-up forms
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
+  // Validates password strength using a regular expression
   const validatePassword = (password: string): boolean => {
     const strongPasswordRegex = new RegExp(
       "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])(?=.{8,})"
@@ -27,6 +28,7 @@ export default function LoginPage() {
     return strongPasswordRegex.test(password);
   }
 
+  // Handles user sign-up process
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -46,7 +48,7 @@ export default function LoginPage() {
       email,
       password,
       options: {
-        data: { username },
+        data: { username }, // Pass username as part of user metadata
       },
     })
 
@@ -54,6 +56,7 @@ export default function LoginPage() {
       setError(error.message)
     } else {
       alert('Sign up successful! Please check your email to confirm.')
+      // Reset form fields and switch to sign-in view
       setIsSignUp(false)
       setEmail('')
       setUsername('')
@@ -63,6 +66,7 @@ export default function LoginPage() {
     setLoading(false)
   }
 
+  // Handles user sign-in process
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -72,8 +76,8 @@ export default function LoginPage() {
     if (error) {
       setError(error.message)
     } else {
-      router.push('/dashboard')
-      router.refresh()
+      router.push('/dashboard') // Redirect to dashboard on successful sign-in
+      router.refresh() // Refresh page to ensure session is updated
     }
     setLoading(false)
   }
@@ -91,6 +95,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="grid gap-4">
+            {/* Username input for sign-up form */}
             {isSignUp && (
               <div className="grid gap-2">
                 <Label htmlFor="username">Username</Label>
@@ -104,6 +109,7 @@ export default function LoginPage() {
                 />
               </div>
             )}
+            {/* Email input for both forms */}
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -115,6 +121,7 @@ export default function LoginPage() {
                 required
               />
             </div>
+            {/* Password input for both forms */}
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -124,7 +131,7 @@ export default function LoginPage() {
                 onChange={e => setPassword(e.target.value)}
                 required
               />
-              {/* --- NEW: Password requirements list --- */}
+              {/* Password requirements displayed only for sign-up */}
               {isSignUp && (
                 <div className="text-xs text-muted-foreground mt-2 space-y-1">
                   <p className="font-semibold">Password must contain:</p>
@@ -136,9 +143,9 @@ export default function LoginPage() {
                   </ul>
                 </div>
               )}
-              {/* --- End of requirements list --- */}
             </div>
 
+            {/* Confirm Password input only for sign-up */}
             {isSignUp && (
               <div className="grid gap-2">
                 <Label htmlFor="confirm-password">Confirm Password</Label>
@@ -152,18 +159,22 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Display error message if any */}
             {error && <p className="text-sm text-red-500">{error}</p>}
+            
+            {/* Submit button with loading state */}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
             </Button>
           </form>
+          {/* Toggle between Sign Up and Sign In views */}
           <div className="mt-4 text-center text-sm">
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}
             <Button 
               variant="link" 
               onClick={() => {
                 setIsSignUp(!isSignUp)
-                setError(null)
+                setError(null) // Clear any previous errors when switching forms
               }} 
               className="pl-1"
             >
