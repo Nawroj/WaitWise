@@ -90,7 +90,11 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ onSuccess,
 
     } catch (error: unknown) {
       toast.dismiss('stripe-submit');
-      onFailure(error.message || 'An unexpected error occurred.');
+      let errorMessage = 'An unexpected error occurred.';
+if (error instanceof Error) {
+  errorMessage = error.message;
+}
+onFailure(errorMessage);
     } finally {
       setLoading(false);
     }
