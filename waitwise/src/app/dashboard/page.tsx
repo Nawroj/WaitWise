@@ -612,50 +612,54 @@ export default function DashboardPage() {
 
   // Handles deleting the shop logo
   const handleDeleteLogo = async () => {
-    if (!shop || !shop.logo_url) return;
+  if (!shop || !shop.logo_url) return;
 
-    if (!confirm('Are you sure you want to permanently delete your shop logo?')) {
-      return;
-    }
+  if (!confirm('Are you sure you want to permanently delete your shop logo?')) {
+    return;
+  }
 
-    toast.loading('Deleting logo...');
+  toast.loading('Deleting logo...');
 
-    try {
-      // Extract the file path from the full URL to delete from storage
-      const logoPath = shop.logo_url.split('/shop-logos/')[1].split('?')[0];
-      const { error: storageError } = await supabase.storage.from('shop-logos').remove([logoPath]);
-      
-      if (storageError) {
-        // If the file does not exist in storage, we can ignore the error and still update the DB
-        if (storageError.message !== 'The resource was not found') {
-          throw storageError;
-        }
+  try {
+    // Extract the file path from the full URL to delete from storage
+    const logoPath = shop.logo_url.split('/shop-logos/')[1].split('?')[0];
+    const { error: storageError } = await supabase.storage.from('shop-logos').remove([logoPath]);
+    
+    if (storageError) {
+      // If the file doesn't exist in storage, we can ignore the error and still update the DB
+      if (storageError.message !== 'The resource was not found') {
+        throw storageError;
       }
-
-      // Set the logo_url in the database to null
-      const { data: updatedShop, error: dbError } = await supabase
-        .from('shops')
-        .update({ logo_url: null })
-        .eq('id', shop.id)
-        .select()
-        .single();
-        
-      if (dbError) throw dbError;
-
-      // Update the local state to reflect the change and close the dialog
-      setShop(updatedShop);
-      setLogoPreviewUrl(null);
-      setActiveEditSection(null); 
-      
-      toast.dismiss();
-      toast.success('Logo deleted successfully!');
-
-    } catch (error) {
-      toast.dismiss();
-      toast.error(`Failed to delete logo: ${error.message}`);
-      console.error('Delete logo error:', error);
     }
-  };
+
+    // Set the logo_url in the database to null
+    const { data: updatedShop, error: dbError } = await supabase
+      .from('shops')
+      .update({ logo_url: null })
+      .eq('id', shop.id)
+      .select()
+      .single();
+      
+    if (dbError) throw dbError;
+
+    // Update the local state to reflect the change and close the dialog
+    setShop(updatedShop);
+    setLogoPreviewUrl(null);
+    setActiveEditSection(null); 
+    
+    toast.dismiss();
+    toast.success('Logo deleted successfully!');
+
+  } catch (error: unknown) { // 'error' is now 'unknown'
+    toast.dismiss();
+    let errorMessage = 'An unexpected error occurred.'; // Default message
+    if (error instanceof Error) { // Type guard: check if 'error' is an instance of 'Error'
+      errorMessage = error.message; // Now it's safe to access .message
+    }
+    toast.error(`Failed to delete logo: ${errorMessage}`);
+    console.error('Delete logo error:', error);
+  }
+};
 
   // Adds a new service to the shop
   const handleAddService = async () => {
