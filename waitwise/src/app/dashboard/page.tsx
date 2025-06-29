@@ -1326,8 +1326,8 @@ export default function DashboardPage() {
               <CardHeader><CardTitle>Usage</CardTitle></CardHeader>
               <CardContent>
                   {(() => {
-                      if (totalEventCount < 1) {
-                          const remaining = 1 - totalEventCount;
+                      if (totalEventCount < 50) {
+                          const remaining = 50 - totalEventCount;
                           return (<div><p className='text-2xl font-bold'>{remaining}</p><p className='text-sm text-muted-foreground'>free trial usages remaining.</p></div>);
                       } else if (shop.subscription_status === 'trial' || shop.subscription_status === null) {
                           return (<div><p className='text-2xl font-bold text-destructive'>0</p><p className='text-sm text-muted-foreground'>free trial usages remaining.</p><p className='text-sm font-semibold text-destructive mt-2'>You have used all your free trial clients! Please upgrade to continue serving customers.</p></div>);
@@ -1407,7 +1407,7 @@ export default function DashboardPage() {
                                   <div className='flex gap-1 flex-shrink-0'>
                                     <Button variant='ghost' size='icon' className='h-7 w-7 hover:text-primary transition-colors' onClick={() => handleOpenEditDialog(entry)}><Edit className='h-4 w-4' /></Button>
                                     <Button variant='ghost' size='icon' className='h-7 w-7 hover:text-destructive transition-colors' onClick={() => handleUpdateStatus(entry.id, 'no_show')}><Trash2 className='h-4 w-4' /></Button>
-                                    <Button variant='outline' size='sm' className="hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber || barber.is_on_break || shop.subscription_status === 'past_due' || (totalEventCount >= 1 && (shop.subscription_status === 'trial' || shop.subscription_status === null))}>Start</Button>
+                                    <Button variant='outline' size='sm' className="hover:bg-primary hover:text-primary-foreground transition-colors" onClick={() => handleUpdateStatus(entry.id, 'in_progress')} disabled={!!inProgressWithBarber || barber.is_on_break || shop.subscription_status === 'past_due' || (totalEventCount >= 50 && (shop.subscription_status === 'trial' || shop.subscription_status === null))}>Start</Button>
                                   </div>
                                 </CardTitle>
                                 <CardDescription className='text-xs pt-1'>{ entry.queue_entry_services?.map(item => item.services?.name).filter(Boolean).join(', ') || 'No services listed' }</CardDescription>
