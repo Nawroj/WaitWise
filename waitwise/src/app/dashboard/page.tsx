@@ -50,15 +50,16 @@ type AnalyticsData = { totalRevenue: number; totalCustomers: number; noShowRate:
 type EditSection = 'details' | 'services' | 'staff' | 'qr';
 type Invoice = {
   id: string;
-  month: string;
+  month?: string; // Made optional
   amount_due: number;
-  amount_paid: number;
-  currency: string;
+  amount_paid?: number; // Made optional
+  currency?: string; // Made optional
   status: string;
   created_at: string;
-  due_date: string;
+  due_date?: string; // Made optional
   stripe_invoice_id?: string | null;
   stripe_charge_id?: string | null;
+  amount?: number; // Also made optional, or remove if amount_due is used for display.
 };
 
 export default function DashboardPage() {
