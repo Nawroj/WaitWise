@@ -1,3 +1,5 @@
+// supabase/functions/create-stripe-customer-and-attach-payment-method/index.ts
+
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0'; // Ensure this matches your Supabase client version
 import Stripe from 'npm:stripe@18.2.1'; // Ensure this matches the Stripe version you installed
@@ -32,9 +34,10 @@ serve(async (req) => {
     }
 
     // Initialize Supabase client for the Edge Function
+    // IMPORTANT: Use SUPABASE_SERVICE_ROLE_KEY for write operations
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, // <-- THIS IS CRUCIAL FOR WRITE ACCESS
       {
         auth: {
           persistSession: false
@@ -42,10 +45,10 @@ serve(async (req) => {
       }
     );
 
-    // Fetch shop details
+    // Fetch shop details, including its current subscription_status
     const { data: shop, error: shopError } = await supabaseClient
       .from('shops')
-      .select('id, stripe_customer_id')
+      .select('id, stripe_customer_id, subscription_status') // <-- Fetch subscription_status
       .eq('id', shop_id)
       .single();
 
@@ -58,7 +61,7 @@ serve(async (req) => {
     }
 
     let customerId = shop.stripe_customer_id;
-    let attachedPaymentMethodId = payment_method_id; // Assume this will be the ID to store
+    let attachedPaymentMethodId = payment_method_id;
 
     if (customerId) {
       // Customer already exists in Stripe, attach new payment method
@@ -81,25 +84,48 @@ serve(async (req) => {
         invoice_settings: {
           default_payment_method: payment_method_id,
         },
+        metadata: {
+          shop_id: shop_id, // IMPORTANT: Link Stripe customer to your shop for webhooks
+        }
       });
       customerId = customer.id;
       console.log(`Created new Stripe customer ${customerId} and attached payment method.`);
     }
 
+    // Prepare update object for Supabase
+    const updateShopData: { 
+      stripe_customer_id: string; 
+      stripe_payment_method_id: string; 
+      subscription_status?: string | null; 
+      account_balance?: number; 
+    } = {
+      stripe_customer_id: customerId,
+      stripe_payment_method_id: attachedPaymentMethodId,
+    };
+
+    // --- CONDITIONAL LOGIC FOR SUBSCRIPTION STATUS AND BALANCE ---
+    // Only set to 'active' and reset balance if currently 'trial' or null
+    if (shop.subscription_status === 'trial' || shop.subscription_status === null) {
+      updateShopData.subscription_status = 'active';
+      updateShopData.account_balance = 0;
+      console.log(`Shop ${shop_id} status transitioning from ${shop.subscription_status || 'null'} to 'active' during card update.`);
+    } else {
+      console.log(`Shop ${shop_id} subscription status remains '${shop.subscription_status}' during card update (already active/past_due).`);
+      // If it's 'past_due', the status will remain 'past_due'.
+      // The account_balance also remains as is. The retry-payment function will handle clearing it.
+    }
+    // --- END CONDITIONAL LOGIC ---
+
+
     // Update Supabase shop record
     const { error: updateError } = await supabaseClient
       .from('shops')
-      .update({
-        stripe_customer_id: customerId,
-        stripe_payment_method_id: attachedPaymentMethodId,
-        subscription_status: 'active', // Set to active on successful payment method setup
-        account_balance: 0 // Reset balance, assuming new payment method covers old debts
-      })
+      .update(updateShopData) // Use the conditionally built updateShopData object
       .eq('id', shop_id);
 
     if (updateError) {
-      console.error('Error updating shop in Supabase:', updateError);
-      return new Response(JSON.stringify({ error: 'Failed to update shop record.' }), {
+      console.error('Error updating shop in Supabase:', updateError.message);
+      return new Response(JSON.stringify({ error: `Failed to update shop record: ${updateError.message}` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       });
@@ -109,12 +135,14 @@ serve(async (req) => {
       message: 'Payment method attached successfully and shop updated.',
       customer_id: customerId,
       payment_method_id: attachedPaymentMethodId,
+      // Optionally return the updated status (which might still be past_due)
+      current_shop_status: updateShopData.subscription_status || shop.subscription_status
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }, // Merge CORS headers with Content-Type
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Stripe function error:', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,3 +1,5 @@
+// supabase/functions/process-monthly-invoices/index.ts
+
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0'; // Ensure this matches your Supabase client version
 import Stripe from 'npm:stripe@18.2.1'; // Ensure this matches the Stripe version you installed
@@ -141,6 +143,9 @@ serve(async (req) => {
           auto_advance: true, // Automatically finalizes and attempts to charge
           currency: currency,
           description: `Monthly usage for ${new Date(prevMonthStartDate).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`,
+          metadata: { // IMPORTANT: Add metadata to link back to your shop
+              shop_id: shop.id,
+          }
           // default_payment_method is inherited from customer's invoice_settings
         });
 
@@ -189,15 +194,16 @@ serve(async (req) => {
       }
 
       // --- 4.5 Record Invoice in Supabase `invoices` table ---
+      // This is a direct record of the *attempt*, the actual status might change via webhook
       const { data: insertedInvoice, error: insertInvoiceError } = await supabaseClient
         .from('invoices')
         .insert({
           shop_id: shop.id,
           month: prevMonthStartDate.toISOString().split('T')[0], // Store as YYYY-MM-DD
           amount_due: totalAmountDue,
-          amount_paid: finalInvoiceStatus === 'paid' ? totalAmountDue : 0,
+          amount_paid: finalInvoiceStatus === 'paid' ? totalAmountDue : 0, // Initial assumption based on direct call
           currency: currency,
-          status: finalInvoiceStatus,
+          status: finalInvoiceStatus, // Initial assumption based on direct call
           stripe_invoice_id: stripeInvoiceResponse?.id || null,
           stripe_charge_id: stripeChargeId,
           due_date: new Date(today.setUTCDate(today.getUTCDate() + 7)).toISOString(), // Due in 7 days from today's run
@@ -228,7 +234,9 @@ serve(async (req) => {
         }
       }
       
-      // --- 4.7 Update shop `subscription_status` and `account_balance` ---
+      // --- 4.7 REMOVE shop `subscription_status` and `account_balance` updates ---
+      // These updates will now be handled by the Stripe webhook handler.
+      /*
       let newShopStatus = shop.subscription_status;
       let newAccountBalance = 0; // Reset for paid, accumulate for failed
 
@@ -253,6 +261,7 @@ serve(async (req) => {
           console.error(`Error updating shop status/balance for ${shop.id}:`, updateShopStatusError);
           billingResults.push({ shop_id: shop.id, status: 'error', message: `Failed to update shop status/balance: ${updateShopStatusError.message}` });
       }
+      */
     }
 
     // --- 5. Return overall results ---

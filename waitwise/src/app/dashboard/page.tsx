@@ -48,15 +48,15 @@ type Service = { id:string; name: string; price: number; duration_minutes: numbe
 type Barber = { id: string; name: string; avatar_url: string | null; is_working_today: boolean; is_on_break: boolean; break_end_time: string | null; };
 type Invoice = {
   id: string;
-  month: string; // Added: To store the month of the invoice (e.g., '2025-05-01')
-  amount_due: number; // Changed from 'amount' to 'amount_due'
-  amount_paid: number; // Added: To show how much was actually paid
-  currency: string; // Added: To show the currency
+  month: string;
+  amount_due: number;
+  amount_paid: number;
+  currency: string;
   status: string;
   created_at: string;
-  due_date: string; // Added: For the invoice due date
-  stripe_invoice_id?: string | null; // Corrected: For Stripe's hosted invoice ID
-  stripe_charge_id?: string | null; // Added: For the specific charge ID if needed
+  due_date: string;
+  stripe_invoice_id?: string | null;
+  stripe_charge_id?: string | null;
 };
 type AnalyticsData = { totalRevenue: number; totalCustomers: number; noShowRate: number; barberRevenueData: { name: string; revenue: number }[]; barberClientData: { name: string; clients: number }[]; };
 type EditSection = 'details' | 'services' | 'staff' | 'qr';
@@ -150,22 +150,25 @@ export default function DashboardPage() {
 
   // Fetches payment invoices for the shop
   const fetchInvoices = async (shopId: string) => {
-  console.log('Fetching invoices for shopId:', shopId); // CRITICAL: Confirm correct shopId
-  const { data, error } = await supabase
-    .from('invoices')
-    .select('id, month, amount_due, amount_paid, currency, status, created_at, due_date, stripe_invoice_id, stripe_charge_id')
-    .eq('shop_id', shopId)
-    .order('created_at', { ascending: false });
+    if (!shopId) return;
+    
+    console.log('Fetching invoices initiated for shopId:', shopId); // Log 1: Confirm function call and shopId
 
-  if (error) {
-    console.error('Error fetching invoices:', error); // Should log errors here
-    toast.error('Failed to fetch payment history.');
-  } else {
-    console.log("Raw data from Supabase for invoices:", data); // CRITICAL: See what Supabase returns
-    setInvoices(data as Invoice[] || []);
-    console.log("Invoices state after set:", data ? data.length : 0); // Confirm length
-  }
-};
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('id, month, amount_due, amount_paid, currency, status, created_at, due_date, stripe_invoice_id, stripe_charge_id')
+      .eq('shop_id', shopId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching invoices from Supabase API:', error); // Log 2: Any API errors
+      toast.error('Failed to fetch payment history.');
+    } else {
+      console.log("Raw data received from Supabase for invoices:", data); // Log 3: What data does Supabase return?
+      setInvoices(data as Invoice[] || []);
+      console.log("Invoices state updated with length:", data ? data.length : 0); // Log 4: What's the length after set?
+    }
+  };
 
   // Initial data fetch on component mount: user, shop, queue, services, barbers
   useEffect(() => {
@@ -237,26 +240,28 @@ export default function DashboardPage() {
 
   // Fetches the latest failed invoice if subscription status is 'past_due'
   useEffect(() => {
-    if (shop?.subscription_status === 'past_due') {
-      const fetchFailedInvoice = async () => {
-        const { data, error } = await supabase
-    .from('invoices')
-    .select('id, amount_due:amount, created_at, status, stripe_charge_id:stripe_charge_id') // Adjusted here
-    .eq('shop_id', shop.id)
-    .eq('status', 'failed')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-        
-        if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
-          console.error('Error fetching failed invoice:', error);
-        } else {
-          setFailedInvoice(data);
-        }
-      };
-      fetchFailedInvoice();
-    }
-  }, [shop, supabase]);
+  if (shop?.subscription_status === 'past_due') {
+    const fetchFailedInvoice = async () => {
+      console.log('Attempting to fetch failed invoice for shop:', shop.id); // Added log
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('id, amount_due, created_at, status, stripe_charge_id')
+        .eq('shop_id', shop.id)
+        .eq('status', 'failed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        console.error('Error fetching failed invoice:', error); // Log specific error
+      } else {
+        console.log('Fetched failed invoice data:', data); // See what data is returned
+        setFailedInvoice(data);
+      }
+    };
+    fetchFailedInvoice();
+  }
+}, [shop, supabase]);
 
   // Fetches analytics data based on selected range
   useEffect(() => {
@@ -679,27 +684,92 @@ export default function DashboardPage() {
 
   // Retries a failed payment
   const handleRetryPayment = async () => {
-    if (!shop || !failedInvoice) return;
-    toast.loading('Retrying payment...');
-    
-    const { error } = await supabase.functions.invoke('retry-payment', {
-      body: { shop_id: shop.id },
+  if (!shop || !failedInvoice) return;
+
+  // Initial check: if no Stripe payment method is associated with the shop
+  // This is a simplified check. A more robust system would rely on webhooks
+  // to keep the payment_method_id up-to-date or check Stripe directly.
+  if (shop.stripe_payment_method_id === null) {
+      toast.error('No payment method found on file. Please add or update it.', {
+          action: {
+              label: 'Update Method',
+              onClick: () => {
+                  setIsBillingDialogOpen(true);
+                  setIsUpgrading(true); // Open the billing dialog to the payment method section
+              },
+          },
+          id: 'no-payment-method' // Unique ID to dismiss this specific toast
+      });
+      return;
+  }
+
+  toast.loading('Retrying payment...', { id: 'retry-payment-toast' });
+
+  try {
+    // Call the Supabase Edge Function
+    const { data, error: invokeError } = await supabase.functions.invoke('retry-payment', {
+        body: { shop_id: shop.id },
     });
-    
-    toast.dismiss();
-    
-    if (error) {
-      toast.error(`Payment failed: ${error.message}`);
+
+    toast.dismiss('retry-payment-toast');
+
+    if (invokeError) {
+        console.error('Error invoking retry-payment function:', invokeError.message);
+
+        // Parse specific error messages from the Edge Function
+        let userMessage = 'Failed to process payment. Please try again or update your payment method.';
+        let actionLabel = 'Update Method';
+        let actionOnClick = () => {
+            setIsBillingDialogOpen(true);
+            setIsUpgrading(true);
+        };
+
+        // The Edge Function returns a JSON with an 'error' field
+        const parsedError = invokeError.message; // Assuming invokeError.message holds the JSON string or relevant error
+        
+        // You might need more sophisticated parsing here if invokeError.message
+        // is not always a clean string. For now, we'll check for keywords.
+        if (parsedError.includes('Payment declined')) {
+            userMessage = 'Payment declined. Please update your payment method.';
+        } else if (parsedError.includes('No payment method on file')) {
+            userMessage = 'No payment method found. Please add one.';
+        } else if (parsedError.includes('already paid')) {
+            userMessage = 'Invoice was already paid. Your account should be active.';
+            actionLabel = 'Close'; // No need to update method
+            actionOnClick = () => setIsBillingDialogOpen(false);
+        } else if (parsedError.includes('Cannot retry payment')) {
+            userMessage = 'This invoice cannot be retried. Please check your billing settings.';
+            actionLabel = 'Go to Billing';
+        }
+
+
+        toast.error(userMessage, {
+            action: {
+                label: actionLabel,
+                onClick: actionOnClick,
+            },
+        });
+
     } else {
-      toast.success('Payment successful! Your account is now active.');
-      // Refresh shop data to update subscription status
-      const { data: updatedShop } = await supabase.from('shops').select('*').eq('id', shop.id).single();
-      if (updatedShop) {
-        setShop(updatedShop);
-        setFailedInvoice(null); // Clear failed invoice info
-      }
+        // Successful payment
+        toast.success('Payment successful! Your account is now active.');
+        // Refresh shop data to update subscription status and clear failed invoice
+        const { data: updatedShop, error: shopRefreshError } = await supabase.from('shops').select('*').eq('id', shop.id).single();
+        if (shopRefreshError) {
+            console.error('Error refreshing shop data after successful retry:', shopRefreshError);
+            toast.error('Account updated, but failed to refresh shop data in dashboard.');
+        } else if (updatedShop) {
+            setShop(updatedShop);
+            setFailedInvoice(null); // Clear failed invoice info
+        }
+        setIsBillingDialogOpen(false); // Close the billing dialog on success
     }
-  };
+  } catch (error: any) {
+    toast.dismiss('retry-payment-toast');
+    console.error('Unexpected error during payment retry:', error);
+    toast.error('An unexpected error occurred during payment retry.');
+  }
+};
 
   // Adds a new barber (staff member)
   const handleAddBarber = async () => {
@@ -999,6 +1069,13 @@ export default function DashboardPage() {
             <div className='p-4 mb-6 text-destructive-foreground bg-destructive rounded-md' role='alert'>
               <h3 className='font-bold'>Payment Problem</h3>
               <p>We were unable to process your last payment. Please update your payment method in the billing section to restore full access.</p>
+              {/* Add a retry button here */}
+              <Button
+        onClick={handleRetryPayment}
+        className="mt-3 bg-white text-destructive hover:bg-gray-100 border border-destructive"
+      >
+        Retry Payment
+      </Button>
             </div>
           )}
         </motion.div>
@@ -1186,7 +1263,23 @@ export default function DashboardPage() {
                     }
                   </p>
 
-                  <Button variant='outline' className='w-full hover:text-primary hover:border-primary' onClick={() => setIsUpgrading(!isUpgrading)}>
+                  <Button
+                    variant='outline'
+                    className='w-full hover:text-primary hover:border-primary'
+                    onClick={async () => { // Make this async to fetch email
+                      if (!isUpgrading) { // Only fetch email if opening the form
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (user && user.email) {
+                          setBillingEmail(user.email);
+                          setIsEmailPromptVisible(false);
+                        } else {
+                          setIsEmailPromptVisible(true);
+                          setBillingEmail(''); // Clear if no email found
+                        }
+                      }
+                      setIsUpgrading(!isUpgrading);
+                    }}
+                  >
                     {isUpgrading ? 'Close Form' : 'Update Payment Method'}
                   </Button>
 
@@ -1218,6 +1311,7 @@ export default function DashboardPage() {
                 </motion.div>
               )}
             </motion.div>
+            
             <DialogFooter>
               <DialogClose asChild><Button type='button' variant='secondary'>Close</Button></DialogClose>
             </DialogFooter>
