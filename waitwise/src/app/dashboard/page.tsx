@@ -48,6 +48,18 @@ type Service = { id:string; name: string; price: number; duration_minutes: numbe
 type Barber = { id: string; name: string; avatar_url: string | null; is_working_today: boolean; is_on_break: boolean; break_end_time: string | null; };
 type AnalyticsData = { totalRevenue: number; totalCustomers: number; noShowRate: number; barberRevenueData: { name: string; revenue: number }[]; barberClientData: { name: string; clients: number }[]; };
 type EditSection = 'details' | 'services' | 'staff' | 'qr';
+type Invoice = {
+  id: string;
+  month: string;
+  amount_due: number;
+  amount_paid: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  due_date: string;
+  stripe_invoice_id?: string | null;
+  stripe_charge_id?: string | null;
+};
 
 export default function DashboardPage() {
   const supabase = createClient();
