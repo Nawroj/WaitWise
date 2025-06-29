@@ -7,16 +7,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
+// Define the Shop type to be consistent with DashboardPage.tsx
+// It's crucial that this type matches the comprehensive Shop type in DashboardPage
+// to avoid type mismatches when passing the new shop object.
 type Shop = {
   id: string;
   name: string;
   address: string;
   owner_id: string;
-  email: string | null; // ADDED: Email field to the Shop type
+  email: string | null;
   subscription_status: 'trial' | 'active' | 'past_due' | null;
   stripe_customer_id: string | null;
   opening_time: string | null;
   closing_time: string | null;
+  // ADDED: These properties must be included and initialized to null when creating a new shop
+  // to satisfy the Shop type definition in DashboardPage.tsx
+  logo_url: string | null;
+  pin_customer_token: string | null;
+  stripe_payment_method_id: string | null;
 };
 
 interface CreateShopFormProps {
@@ -43,14 +51,11 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
         throw new Error("Could not find user. Please log in again.")
       }
 
-      // --- START CHANGE ---
-      // Get the user's email from the authenticated session
       const userEmail = user.email;
 
       if (!userEmail) {
         throw new Error("Could not retrieve user email. Please ensure your account has an email address.");
       }
-      // --- END CHANGE ---
 
       const { data: newShop, error: insertError } = await supabase
         .from('shops')
@@ -60,21 +65,26 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
           opening_time: openingTime,
           closing_time: closingTime,
           owner_id: user.id,
-          email: userEmail, // ADDED: Save the user's email to the shops table
-          subscription_status: 'trial' // Assuming new shops start on trial
+          email: userEmail,
+          subscription_status: 'trial', // Assuming new shops start on trial
+          // ADDED: Initialize these fields to null to match the Shop type
+          logo_url: null,
+          pin_customer_token: null,
+          stripe_payment_method_id: null,
         })
-        .select()
-        .single()
+        .select() // Use .select() to return the created row
+        .single() // Expect a single row back
 
       if (insertError) {
         throw insertError
       }
 
+      // Ensure newShop is correctly typed as 'Shop' before passing
       if (newShop) {
         onShopCreated(newShop as Shop)
       }
 
-    } catch (err) {
+    } catch (err: unknown) { // Changed 'any' to 'unknown' for better type safety
       if (err instanceof Error) {
         setError(err.message)
       } else {
