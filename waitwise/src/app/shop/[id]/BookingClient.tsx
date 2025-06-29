@@ -354,7 +354,7 @@ export default function BookingClient({ shop, services, barbers }: BookingClient
           <Card className="mt-8 text-center p-8 bg-card border-border">
               <CardHeader>
                   <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <CardTitle className="mt-4">Sorry, We're Currently Closed</CardTitle>
+                  <CardTitle className="mt-4">Sorry, We&apos;re Currently Closed</CardTitle>
               </CardHeader>
               <CardContent>
                   <p className="text-muted-foreground">

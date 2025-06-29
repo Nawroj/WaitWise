@@ -67,7 +67,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ onSuccess,
 
       // Call the Supabase Edge Function
       const supabase = await import('@/lib/supabase/client').then(m => m.createClient()); // Dynamically import createClient
-      const { data, error: invokeError } = await supabase.functions.invoke('create-stripe-customer-and-attach-payment-method', {
+      const { error: invokeError } = await supabase.functions.invoke('create-stripe-customer-and-attach-payment-method', {
         body: {
           payment_method_id: paymentMethod.id,
           email: billingEmail,
@@ -88,7 +88,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({ onSuccess,
       toast.success('Payment method saved successfully!');
       onSuccess();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.dismiss('stripe-submit');
       onFailure(error.message || 'An unexpected error occurred.');
     } finally {

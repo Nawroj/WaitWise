@@ -16,7 +16,7 @@ import { Badge } from '../../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../../components/ui/dropdown-menu';
-import { Trash2, Edit, RefreshCw, QrCode, CreditCard, Wand2, ListPlus, UserPlus, MoreVertical, Loader2, Settings, Store, Users, Coffee } from 'lucide-react';
+import { Trash2, Edit, RefreshCw, QrCode, CreditCard, Wand2, ListPlus, UserPlus, MoreVertical, Loader2, Settings, Store, Users} from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QRCode from 'qrcode';
@@ -46,18 +46,6 @@ type QueueEntry = { id: string; client_name: string; queue_position: number; sta
 type Shop = { id: string; name: string; logo_url: string | null; address: string; owner_id: string; subscription_status: 'trial' | 'active' | 'past_due' | null; pin_customer_token: string | null; opening_time: string | null; closing_time: string | null; account_balance?: number; stripe_customer_id: string | null; stripe_payment_method_id: string | null; };
 type Service = { id:string; name: string; price: number; duration_minutes: number };
 type Barber = { id: string; name: string; avatar_url: string | null; is_working_today: boolean; is_on_break: boolean; break_end_time: string | null; };
-type Invoice = {
-  id: string;
-  month: string;
-  amount_due: number;
-  amount_paid: number;
-  currency: string;
-  status: string;
-  created_at: string;
-  due_date: string;
-  stripe_invoice_id?: string | null;
-  stripe_charge_id?: string | null;
-};
 type AnalyticsData = { totalRevenue: number; totalCustomers: number; noShowRate: number; barberRevenueData: { name: string; revenue: number }[]; barberClientData: { name: string; clients: number }[]; };
 type EditSection = 'details' | 'services' | 'staff' | 'qr';
 
@@ -110,7 +98,6 @@ export default function DashboardPage() {
   const [analyticsRange, setAnalyticsRange] = useState('today'); // Time range for analytics data
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null); // Fetched analytics data
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true); // Loading state for analytics
-  const [invoices, setInvoices] = useState<Invoice[]>([]); // Payment history invoices
   const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
   // Fetches current day's queue entries for the shop
@@ -134,6 +121,27 @@ export default function DashboardPage() {
     setQueueEntries(data as QueueEntry[]);
   }, [supabase]);
 
+  const generateQRCode = async () => {
+    if (!shop) return;
+    const url = `${window.location.origin}/shop/${shop.id}`;
+    try {
+      const options = {
+        errorCorrectionLevel: 'H' as const,
+        type: 'image/png' as const,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      };
+      const dataUrl = await QRCode.toDataURL(url, options);
+      setQrCodeDataUrl(dataUrl);
+    } catch (err) {
+      console.error('Failed to generate QR code', err);
+      toast.error('Could not generate QR code. Please try again.');
+    }
+  };
+
   // Fetches shop's services and barbers
   const fetchShopData = useCallback(async (shopId: string) => {
     if (!shopId) return;
@@ -148,27 +156,7 @@ export default function DashboardPage() {
     setBarbers(barbersData as Barber[] || []);
   }, [supabase]);
 
-  // Fetches payment invoices for the shop
-  const fetchInvoices = async (shopId: string) => {
-    if (!shopId) return;
-    
-    console.log('Fetching invoices initiated for shopId:', shopId); // Log 1: Confirm function call and shopId
 
-    const { data, error } = await supabase
-      .from('invoices')
-      .select('id, month, amount_due, amount_paid, currency, status, created_at, due_date, stripe_invoice_id, stripe_charge_id')
-      .eq('shop_id', shopId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching invoices from Supabase API:', error); // Log 2: Any API errors
-      toast.error('Failed to fetch payment history.');
-    } else {
-      console.log("Raw data received from Supabase for invoices:", data); // Log 3: What data does Supabase return?
-      setInvoices(data as Invoice[] || []);
-      console.log("Invoices state updated with length:", data ? data.length : 0); // Log 4: What's the length after set?
-    }
-  };
 
   // Initial data fetch on component mount: user, shop, queue, services, barbers
   useEffect(() => {
@@ -328,7 +316,7 @@ export default function DashboardPage() {
     if (activeEditSection === 'qr' && !qrCodeDataUrl) {
       generateQRCode();
     }
-  }, [activeEditSection, qrCodeDataUrl]);
+  }, [activeEditSection, qrCodeDataUrl, generateQRCode]);
 
   // Memoized lists for completed and no-show entries
   const fullCompletedList = useMemo(() => queueEntries.filter((e) => e.status === 'done').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [queueEntries]);
@@ -625,7 +613,7 @@ export default function DashboardPage() {
       const { error: storageError } = await supabase.storage.from('shop-logos').remove([logoPath]);
       
       if (storageError) {
-        // If the file doesn't exist in storage, we can ignore the error and still update the DB
+        // If the file does not exist in storage, we can ignore the error and still update the DB
         if (storageError.message !== 'The resource was not found') {
           throw storageError;
         }
@@ -707,7 +695,7 @@ export default function DashboardPage() {
 
   try {
     // Call the Supabase Edge Function
-    const { data, error: invokeError } = await supabase.functions.invoke('retry-payment', {
+    const { error: invokeError } = await supabase.functions.invoke('retry-payment', {
         body: { shop_id: shop.id },
     });
 
@@ -764,7 +752,7 @@ export default function DashboardPage() {
         }
         setIsBillingDialogOpen(false); // Close the billing dialog on success
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     toast.dismiss('retry-payment-toast');
     console.error('Unexpected error during payment retry:', error);
     toast.error('An unexpected error occurred during payment retry.');
@@ -814,26 +802,7 @@ export default function DashboardPage() {
   };
 
   // Generates a QR code for the shop's public booking page
-  const generateQRCode = async () => {
-    if (!shop) return;
-    const url = `${window.location.origin}/shop/${shop.id}`;
-    try {
-      const options = {
-        errorCorrectionLevel: 'H' as const,
-        type: 'image/png' as const,
-        margin: 1,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      };
-      const dataUrl = await QRCode.toDataURL(url, options);
-      setQrCodeDataUrl(dataUrl);
-    } catch (err) {
-      console.error('Failed to generate QR code', err);
-      toast.error('Could not generate QR code. Please try again.');
-    }
-  };
+  
 
   // Renders the content for different edit dialog sections
   const renderEditDialogContent = () => {
@@ -1151,19 +1120,15 @@ export default function DashboardPage() {
 
         {/* Billing Dialog */}
         <Dialog open={isBillingDialogOpen} onOpenChange={(isOpen) => {
-          // Fetch invoices when billing dialog opens
-          if (isOpen && shop) {
-            fetchInvoices(shop.id);
-          }
-          // Reset states when billing dialog closes
-          if (!isOpen) {
-            setIsUpgrading(false);
-            setIsEmailPromptVisible(false);
-            setBillingEmail('');
-          }
-          
-          setIsBillingDialogOpen(isOpen);
-        }}>
+  // Reset states when billing dialog closes
+  if (!isOpen) {
+    setIsUpgrading(false);
+    setIsEmailPromptVisible(false);
+    setBillingEmail('');
+  }
+  
+  setIsBillingDialogOpen(isOpen);
+}}>
           <DialogContent className='grid grid-rows-[auto_1fr_auto] max-h-[90vh]'>
             <DialogHeader>
               <DialogTitle>Billing & Subscription</DialogTitle>
