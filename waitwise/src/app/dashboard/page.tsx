@@ -59,7 +59,6 @@ type Invoice = {
   due_date?: string; // Made optional
   stripe_invoice_id?: string | null;
   stripe_charge_id?: string | null;
-  amount?: number; // Also made optional, or remove if amount_due is used for display.
 };
 
 export default function DashboardPage() {
@@ -245,13 +244,13 @@ export default function DashboardPage() {
     const fetchFailedInvoice = async () => {
       console.log('Attempting to fetch failed invoice for shop:', shop.id); // Added log
       const { data, error } = await supabase
-        .from('invoices')
-        .select('id, amount_due, created_at, status, stripe_charge_id')
-        .eq('shop_id', shop.id)
-        .eq('status', 'failed')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+  .from('invoices')
+  .select('id, amount_due, created_at, status, stripe_charge_id, month, amount_paid, currency, due_date') // Ensure amount_due is here and all other necessary fields are selected
+  .eq('shop_id', shop.id)
+  .eq('status', 'failed')
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .single();
 
       if (error) {
         console.error('Error fetching failed invoice:', error); // Log specific error
@@ -1225,7 +1224,7 @@ export default function DashboardPage() {
                     <div className='p-4 border border-destructive/50 bg-destructive/10 rounded-lg text-destructive'>
                       <p className='font-bold'>Payment Failed</p>
                       <p className='text-sm'>
-                        Your payment of ${(failedInvoice.amount / 100).toFixed(2)} on {new Date(failedInvoice.created_at).toLocaleDateString()} was declined.
+                        Your payment of ${(failedInvoice.amount_due / 100).toFixed(2)} on {new Date(failedInvoice.created_at).toLocaleDateString()} was declined.
                       </p>
                     </div>
                   )}
