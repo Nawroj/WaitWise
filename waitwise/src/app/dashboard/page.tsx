@@ -22,7 +22,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import QRCode from 'qrcode';
 import { toast } from 'sonner';
 import { Switch } from '../../components/ui/switch';
-import { motion } from 'framer-motion';
+import { motion, easeInOut } from 'framer-motion';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { StripePaymentForm } from '../../components/ui/StripePaymentForm';
@@ -30,7 +30,7 @@ import { StripePaymentForm } from '../../components/ui/StripePaymentForm';
 // Animation Variants
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeInOut" } },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: easeInOut } }, // Use the imported easeInOut
 };
 
 const staggerContainer = {
