@@ -43,7 +43,20 @@ const staggerContainer = {
 
 // Type definitions
 type QueueEntry = { id: string; client_name: string; queue_position: number; status: 'waiting' | 'in_progress' | 'done' | 'no_show'; created_at: string; barbers: { id: string; name: string; } | null; queue_entry_services: { services: { id: string; name: string; price: number; } | null }[] | null; };
-type Shop = { id: string; name: string; logo_url: string | null; address: string; owner_id: string; subscription_status: 'trial' | 'active' | 'past_due' | null; pin_customer_token: string | null; opening_time: string | null; closing_time: string | null; account_balance?: number; stripe_customer_id: string | null; stripe_payment_method_id: string | null; };
+type Shop = {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  address: string;
+  owner_id: string;
+  email: string | null;
+  subscription_status: 'trial' | 'active' | 'past_due' | null;
+  opening_time: string | null;
+  closing_time: string | null;
+  account_balance?: number;
+  stripe_customer_id: string | null;
+  stripe_payment_method_id: string | null;
+};
 type Service = { id:string; name: string; price: number; duration_minutes: number };
 type Barber = { id: string; name: string; avatar_url: string | null; is_working_today: boolean; is_on_break: boolean; break_end_time: string | null; };
 type AnalyticsData = { totalRevenue: number; totalCustomers: number; noShowRate: number; barberRevenueData: { name: string; revenue: number }[]; barberClientData: { name: string; clients: number }[]; };

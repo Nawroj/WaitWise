@@ -20,11 +20,9 @@ type Shop = {
   stripe_customer_id: string | null;
   opening_time: string | null;
   closing_time: string | null;
-  // ADDED: These properties must be included and initialized to null when creating a new shop
-  // to satisfy the Shop type definition in DashboardPage.tsx
   logo_url: string | null;
-  pin_customer_token: string | null;
   stripe_payment_method_id: string | null;
+  account_balance?: number;
 };
 
 interface CreateShopFormProps {
@@ -58,20 +56,20 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
       }
 
       const { data: newShop, error: insertError } = await supabase
-        .from('shops')
-        .insert({
-          name: shopName,
-          address: shopAddress,
-          opening_time: openingTime,
-          closing_time: closingTime,
-          owner_id: user.id,
-          email: userEmail,
-          subscription_status: 'trial', // Assuming new shops start on trial
-          // ADDED: Initialize these fields to null to match the Shop type
-          logo_url: null,
-          pin_customer_token: null,
-          stripe_payment_method_id: null,
-        })
+  .from('shops')
+  .insert({
+    name: shopName,
+    address: shopAddress,
+    opening_time: openingTime,
+    closing_time: closingTime,
+    owner_id: user.id,
+    email: userEmail,
+    subscription_status: 'trial',
+    logo_url: null,
+    stripe_customer_id: null,
+    stripe_payment_method_id: null,
+    account_balance: 0,
+  })
         .select() // Use .select() to return the created row
         .single() // Expect a single row back
 
