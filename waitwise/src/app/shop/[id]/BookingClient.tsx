@@ -14,12 +14,12 @@ import { Badge } from '../../../components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../../../components/ui/dialog"
 import { Clock, Timer } from 'lucide-react'
 import { toast } from "sonner"
-import { motion } from "framer-motion"
+import { motion, easeInOut } from 'framer-motion';
 
 // Animation Variants for UI elements
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeInOut" } },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: easeInOut } }, // <--- Use the imported easeInOut
 };
 
 const staggerContainer = {
