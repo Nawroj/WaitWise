@@ -814,7 +814,7 @@ export default function DashboardPage() {
           <>
             <DialogHeader>
               <DialogTitle>Edit Shop Details</DialogTitle>
-              <DialogDescription>Update your shop's name, address, logo and opening hours.</DialogDescription>
+              <DialogDescription>Update your shop&apos;s name, address, logo and opening hours.</DialogDescription>
             </DialogHeader>
             <div className='py-4'>
                 <Card className="border-none shadow-none">
