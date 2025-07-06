@@ -2069,7 +2069,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                               if (existing) {
                                   return prevCart.map(item => item.id === itemToAdd.id ? { ...item, quantity: item.quantity + 1 } : item);
                               }
-                              return [...prevCart, { ...itemToAdd, quantity: 1 }]; // Ensure quantity is initialized
+                              return [...prevCart, { ...itemToAdd, quantity: 1 }];
                           });
                       }
                   }} value=""> {/* Reset select value after selection */}
@@ -2088,7 +2088,16 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
             </div>
             <DialogFooter>
               <Button type="button" variant="secondary" onClick={() => setIsAddOrderDialogOpen(false)} disabled={isSubmitting}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting || loading || manualCart.length === 0 || !manualClientName || (manualClientPhone && !isValidAustralianPhone(manualClientPhone))}>
+              <Button
+                type="submit"
+                disabled={
+                  isSubmitting ||
+                  loading ||
+                  manualCart.length === 0 ||
+                  !manualClientName ||
+                  (manualClientPhone !== '' && !isValidAustralianPhone(manualClientPhone)) // FIXED LINE
+                }
+              >
                 {isSubmitting ? 'Adding...' : 'Add Order'}
               </Button>
             </DialogFooter>
