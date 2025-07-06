@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import { createServiceRoleClient } from '../../../../lib/supabase/server'; // Adjust path
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2025-06-30.basil',
 });
 
 // Ensures this route is not statically optimized
