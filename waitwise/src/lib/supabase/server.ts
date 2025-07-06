@@ -13,12 +13,12 @@ export async function createClient(): Promise<SupabaseClient> { // Added Promise
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(_name: string) { // MODIFIED: Prefix with _
-          return cookieStore.get(_name)?.value;
+        get(name: string) { // MODIFIED: Removed Prefix with _ - parameter is used
+          return cookieStore.get(name)?.value;
         },
-        set(_name: string, _value: string, _options: CookieOptions) { // MODIFIED: Prefix with _
+        set(name: string, value: string, options: CookieOptions) { // MODIFIED: Removed Prefix with _ - parameters are used
           try {
-            cookieStore.set({ name: _name, value: _value, ..._options }); // Correct usage of prefixed parameters
+            cookieStore.set({ name, value, ...options }); // Correct usage of prefixed parameters
           } catch (error) {
             console.error(
               "Error setting cookie in Supabase server client:",
@@ -26,9 +26,9 @@ export async function createClient(): Promise<SupabaseClient> { // Added Promise
             );
           }
         },
-        remove(_name: string, _options: CookieOptions) { // MODIFIED: Prefix with _
+        remove(name: string, options: CookieOptions) { // MODIFIED: Removed Prefix with _ - parameters are used
           try {
-            cookieStore.set({ name: _name, value: "", ..._options }); // Correct usage of prefixed parameters
+            cookieStore.set({ name, value: "", ...options }); // Correct usage of prefixed parameters
           } catch (error) {
             console.error(
               "Error removing cookie in Supabase server client:",
@@ -51,9 +51,9 @@ export function createServiceRoleClient(): SupabaseClient { // ADDED: SupabaseCl
   }
 
   const dummyCookieStore = {
-    get: (_name: string) => undefined, // MODIFIED: Prefix with _
-    set: (_name: string, _value: string, _options: CookieOptions) => {}, // MODIFIED: Prefix with _
-    remove: (_name: string, _options: CookieOptions) => {}, // MODIFIED: Prefix with _
+    get: (name: string) => undefined, // MODIFIED: Removed Prefix with _ - parameter is used
+    set: (name: string, value: string, options: CookieOptions) => {}, // MODIFIED: Removed Prefix with _ - parameters are used
+    remove: (name: string, options: CookieOptions) => {}, // MODIFIED: Removed Prefix with _ - parameters are used
   };
 
   return createServerClient(

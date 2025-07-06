@@ -6,18 +6,25 @@ import { createServiceRoleClient } from '../../../../lib/supabase/server'; // Ad
 
 // Initialize Stripe with your secret key
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-06-30.basil', // Use a recent stable API version
+  apiVersion: '2025-06-30', // Use a recent stable API version
 });
 
-// Define types for request body (optional, but good for clarity)
+// Define types for request body
 interface OrderItemPayload {
   menu_item_id: string;
   quantity: number;
 }
 
+interface RequestBody {
+  shop_id: string;
+  items: OrderItemPayload[];
+  client_name: string;
+  client_phone: string;
+}
+
 // App Router API routes use named functions (e.g., POST)
 export async function POST(req: Request) { // Request is standard Web Request API
-  const { shop_id, items, client_name, client_phone } = await req.json(); // Parse JSON body
+  const { shop_id, items, client_name, client_phone }: RequestBody = await req.json(); // Parse JSON body
 
   const supabase = createServiceRoleClient(); // Server-side Supabase client instance
 
@@ -53,18 +60,23 @@ export async function POST(req: Request) { // Request is standard Web Request AP
     const STRIPE_DOMESTIC_RATE = 0.0175; // 1.75%
     const STRIPE_DOMESTIC_FIXED_FEE_CENTS = 30; // A$0.30
 
+    // To store menu item details for detailedOrderItemsToInsert
+    const menuItemsDetails = new Map<string, { price: number; name: string }>();
+
     for (const item of items) {
-      const { data: menuItem, error } = await supabase
+      const { data: menuItem, error: menuItemError } = await supabase
         .from('menu_items')
         .select('price, name')
         .eq('id', item.menu_item_id)
         .eq('shop_id', shop_id) // IMPORTANT: Verify item belongs to this shop
         .single();
 
-      if (error || !menuItem) {
-        console.error('API: Error fetching menu item:', error);
+      if (menuItemError || !menuItem) {
+        console.error('API: Error fetching menu item:', menuItemError);
         return NextResponse.json({ error: `Invalid menu item (${item.menu_item_id}) in order.` }, { status: 400 });
       }
+
+      menuItemsDetails.set(item.menu_item_id, { price: menuItem.price, name: menuItem.name });
 
       const itemPriceCents = Math.round(menuItem.price * 100);
       const itemTotalCents = itemPriceCents * item.quantity;
@@ -109,7 +121,7 @@ export async function POST(req: Request) { // Request is standard Web Request AP
     }
 
     // The total amount the customer pays to Stripe (includes surcharge if applicable)
-    const totalAmountCustomerPaysCents = totalOrderValueBeforeSurchargeCents + surchargeCents;
+    // const totalAmountCustomerPaysCents = totalOrderValueBeforeSurchargeCents + surchargeCents; // This variable was unused
 
     // 4. Calculate Your Platform's Commission
     const PLATFORM_COMMISSION_RATE = 0; // Your platform's commission rate (7%)
@@ -125,7 +137,7 @@ export async function POST(req: Request) { // Request is standard Web Request AP
       .insert({
         shop_id,
         client_name,
-        client_phone: client_phone as string, // Cast to string since it's now mandatory on frontend
+        client_phone: client_phone, // No need to cast to string if already defined as such in RequestBody
         total_amount: totalOrderValueBeforeSurchargeCents / 100, // Store base amount in AUD
         surcharge_amount: surchargeCents / 100, // Store surcharge in AUD
         status: 'pending', // Initial status: pending payment
@@ -141,26 +153,8 @@ export async function POST(req: Request) { // Request is standard Web Request AP
     }
 
     // 6. Insert individual order items into the 'order_items' table
-    const orderItemsToInsert = items.map(item => ({
-      order_id: newOrder.id,
-      menu_item_id: item.menu_item_id,
-      quantity: item.quantity,
-      // You could fetch price_at_order from the menuItem object here if needed,
-      // but it's okay to rely on the backend recalculation for Stripe.
-      price_at_order: Math.round(items.find(i => i.menu_item_id === item.menu_item_id)?.quantity ? (totalOrderValueBeforeSurchargeCents / items.reduce((sum, item) => sum + item.quantity, 0)) : 0), // Calculate average or fetch per item
-      notes: null // If individual item notes exist
-    }));
-
-    // NOTE: The `price_at_order` in orderItemsToInsert above is a simplification.
-    // Ideally, you'd retrieve the actual `menuItem.price` from the DB for each `menu_item_id`
-    // within this API route and use that for `price_at_order`.
-    // For example:
-    const detailedOrderItemsToInsert = await Promise.all(items.map(async (item) => {
-        const { data: menuItem, error } = await supabase
-            .from('menu_items')
-            .select('price')
-            .eq('id', item.menu_item_id)
-            .single();
+    const detailedOrderItemsToInsert = items.map(item => {
+        const menuItem = menuItemsDetails.get(item.menu_item_id);
         return {
             order_id: newOrder.id,
             menu_item_id: item.menu_item_id,
@@ -168,12 +162,11 @@ export async function POST(req: Request) { // Request is standard Web Request AP
             price_at_order: menuItem?.price || 0, // Use the actual price from DB
             notes: null
         };
-    }));
-
+    });
 
     const { error: orderItemsInsertError } = await supabase
       .from('order_items')
-      .insert(detailedOrderItemsToInsert); // Use detailedOrderItemsToInsert
+      .insert(detailedOrderItemsToInsert);
 
     if (orderItemsInsertError) {
       console.error('API: Error inserting order items:', orderItemsInsertError);
@@ -181,7 +174,6 @@ export async function POST(req: Request) { // Request is standard Web Request AP
       await supabase.from('orders').delete().eq('id', newOrder.id);
       return NextResponse.json({ error: 'Failed to record order items in database.' }, { status: 500 });
     }
-
 
     // 7. Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
@@ -223,8 +215,12 @@ export async function POST(req: Request) { // Request is standard Web Request AP
     // Return the sessionId to the frontend to redirect
     return NextResponse.json({ sessionId: session.id }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) { // Catch as unknown and then assert type or check
     console.error('API: Stripe Checkout Session Creation Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to create checkout session.' }, { status: 500 });
+    let errorMessage = 'Failed to create checkout session.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

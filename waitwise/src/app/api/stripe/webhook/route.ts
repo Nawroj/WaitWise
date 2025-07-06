@@ -30,9 +30,13 @@ export async function POST(req: NextRequest) {
   try {
     // 2. Verify the webhook signature
     event = stripe.webhooks.constructEvent(buf, sig!, webhookSecret);
-  } catch (err: any) {
-    console.error(`❌ Error verifying Stripe webhook signature: ${err.message}`);
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+  } catch (err: unknown) { // Catch as unknown and then assert type or check
+    let errorMessage = 'Unknown error verifying webhook signature.';
+    if (err instanceof Error) {
+      errorMessage = err.message;
+    }
+    console.error(`❌ Error verifying Stripe webhook signature: ${errorMessage}`);
+    return NextResponse.json({ error: `Webhook Error: ${errorMessage}` }, { status: 400 });
   }
 
   const supabase = createClient(); // Server-side Supabase client instance
@@ -52,7 +56,7 @@ export async function POST(req: NextRequest) {
           console.log(`✅ Checkout Session Completed: ${session.id} for Order DB ID: ${orderDbId}`);
 
           // Update your order in Supabase
-          const { data, error } = await supabase
+          const { error: updateError } = await supabase // Renamed 'data' to '_data' or removed if truly unused
             .from('orders')
             .update({
               status: 'preparing', // Transition to 'preparing' upon successful payment
@@ -65,8 +69,8 @@ export async function POST(req: NextRequest) {
             .select()
             .single();
 
-          if (error) {
-            console.error(`🚨 Error updating order ${orderDbId} in DB after payment:`, error);
+          if (updateError) {
+            console.error(`🚨 Error updating order ${orderDbId} in DB after payment:`, updateError);
             // Consider logging this error to a monitoring system
             return NextResponse.json({ received: true, error: 'Database update failed' }, { status: 500 });
           }
@@ -94,8 +98,12 @@ export async function POST(req: NextRequest) {
     // 4. Return a 200 OK response to Stripe
     return NextResponse.json({ received: true }, { status: 200 });
 
-  } catch (error: any) {
-    console.error(`❌ Error processing Stripe event ${event.type}:`, error);
+  } catch (error: unknown) { // Catch as unknown and then assert type or check
+    let errorMessage = 'Unknown error processing event.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    console.error(`❌ Error processing Stripe event ${event.type}:`, errorMessage);
     return NextResponse.json({ error: 'Failed to process event' }, { status: 500 });
   }
 }

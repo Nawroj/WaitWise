@@ -11,8 +11,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 // Ensures this route is not statically optimized
 export const dynamic = 'force-dynamic';
 
+interface RequestBody {
+  shop_id: string;
+  owner_email: string;
+}
+
 export async function POST(req: Request) {
-  const { shop_id, owner_email } = await req.json(); // Expect shop_id and owner's email
+  const { shop_id, owner_email }: RequestBody = await req.json(); // Expect shop_id and owner's email
 
   if (!shop_id || !owner_email) {
     return NextResponse.json({ error: 'Shop ID and owner email are required.' }, { status: 400 });
@@ -86,8 +91,12 @@ export async function POST(req: Request) {
     // Return the URL to the frontend to redirect the user
     return NextResponse.json({ url: accountLink.url }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) { // Catch as unknown and then assert type or check
     console.error('API: Error creating Stripe Connect account or link:', error);
-    return NextResponse.json({ error: error.message || 'Failed to initiate Stripe onboarding.' }, { status: 500 });
+    let errorMessage = 'Failed to initiate Stripe onboarding.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

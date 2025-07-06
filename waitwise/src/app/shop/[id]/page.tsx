@@ -6,20 +6,7 @@ import OrderPage from "./OrderPage"; // Client component for food trucks (orderi
 import { notFound } from "next/navigation"; // For handling cases where shop is not found
 
 // --- Type Definitions (ensure these match your database schema precisely) ---
-type Shop = {
-  id: string;
-  name: string;
-  logo_url: string | null;
-  address: string;
-  opening_time: string | null;
-  closing_time: string | null;
-  type: "hair_salon" | "restaurant" | "food_truck"; // Crucial for routing logic
-  // If your database always selects these, you can remove '?'
-  enable_online_payments?: boolean;
-  pass_stripe_fees_to_customer?: boolean;
-  stripe_connect_account_id?: string | null;
-  is_charges_enabled?: boolean;
-};
+
 
 
 // --- ShopPage Server Component ---
