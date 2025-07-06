@@ -1,11 +1,24 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Define the Shop type to be consistent with DashboardPage.tsx
 // It's crucial that this type matches the comprehensive Shop type in DashboardPage
@@ -16,13 +29,14 @@ type Shop = {
   address: string;
   owner_id: string;
   email: string | null;
-  subscription_status: 'trial' | 'active' | 'past_due' | null;
+  subscription_status: "trial" | "active" | "past_due" | null;
   stripe_customer_id: string | null;
   opening_time: string | null;
   closing_time: string | null;
   logo_url: string | null;
   stripe_payment_method_id: string | null;
   account_balance?: number;
+  type: "hair_salon" | "food_truck"; // Updated 'barbershop' to 'hair_salon'
 };
 
 interface CreateShopFormProps {
@@ -30,77 +44,85 @@ interface CreateShopFormProps {
 }
 
 export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
-  const supabase = createClient()
-  const [shopName, setShopName] = useState('')
-  const [shopAddress, setShopAddress] = useState('')
-  const [openingTime, setOpeningTime] = useState('09:00')
-  const [closingTime, setClosingTime] = useState('17:00')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const supabase = createClient();
+  const [shopName, setShopName] = useState("");
+  const [shopAddress, setShopAddress] = useState("");
+  const [openingTime, setOpeningTime] = useState("09:00");
+  const [closingTime, setClosingTime] = useState("17:00");
+  const [shopType, setShopType] = useState<Shop["type"]>("hair_salon"); // Updated default state
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCreateShop = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
       if (userError || !user) {
-        throw new Error("Could not find user. Please log in again.")
+        throw new Error("Could not find user. Please log in again.");
       }
 
       const userEmail = user.email;
 
       if (!userEmail) {
-        throw new Error("Could not retrieve user email. Please ensure your account has an email address.");
+        throw new Error(
+          "Could not retrieve user email. Please ensure your account has an email address.",
+        );
       }
 
       const { data: newShop, error: insertError } = await supabase
-  .from('shops')
-  .insert({
-    name: shopName,
-    address: shopAddress,
-    opening_time: openingTime,
-    closing_time: closingTime,
-    owner_id: user.id,
-    email: userEmail,
-    subscription_status: 'trial',
-    logo_url: null,
-    stripe_customer_id: null,
-    stripe_payment_method_id: null,
-    account_balance: 0,
-  })
-        .select() // Use .select() to return the created row
-        .single() // Expect a single row back
+        .from("shops")
+        .insert({
+          name: shopName,
+          address: shopAddress,
+          opening_time: openingTime,
+          closing_time: closingTime,
+          owner_id: user.id,
+          email: userEmail,
+          subscription_status: "trial",
+          logo_url: null,
+          stripe_customer_id: null,
+          stripe_payment_method_id: null,
+          account_balance: 0,
+          type: shopType,
+        })
+        .select()
+        .single();
 
       if (insertError) {
-        throw insertError
+        throw insertError;
       }
 
-      // Ensure newShop is correctly typed as 'Shop' before passing
       if (newShop) {
-        onShopCreated(newShop as Shop)
+        onShopCreated(newShop as Shop);
       }
-
-    } catch (err: unknown) { // Changed 'any' to 'unknown' for better type safety
+    } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message)
+        setError(err.message);
       } else {
-        setError('An unexpected error occurred.')
+        setError("An unexpected error occurred.");
       }
-      console.error("Error creating shop:", err)
+      console.error("Error creating shop:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <Card className="w-full max-w-lg mx-4">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold">Welcome to WaitWise!</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            Welcome to WaitWise!
+          </CardTitle>
           <CardDescription>
-            Let&apos;s get your business set up. Fill in the details below to create your shop.
+            Let&apos;s get your business set up. Fill in the details below to
+            create your shop.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,7 +131,7 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
               <Label htmlFor="shop-name">Shop Name</Label>
               <Input
                 id="shop-name"
-                placeholder="e.g., The Modern Barber"
+                placeholder="e.g., The Style Studio"
                 value={shopName}
                 onChange={(e) => setShopName(e.target.value)}
                 required
@@ -125,6 +147,24 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
                 required
               />
             </div>
+            {/* Shop Type Selector */}
+            <div className="grid gap-2">
+              <Label htmlFor="shop-type">Shop Type</Label>
+              <Select
+                value={shopType}
+                onValueChange={(value: Shop["type"]) => setShopType(value)}
+              >
+                <SelectTrigger id="shop-type">
+                  <SelectValue placeholder="Select a shop type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hair_salon">Hair Salon</SelectItem>{" "}
+                  {/* Updated value and label */}
+                  <SelectItem value="food_truck">Food Truck</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* End Shop Type Selector */}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="opening-time">Opening Time</Label>
@@ -151,11 +191,11 @@ export function CreateShopForm({ onShopCreated }: CreateShopFormProps) {
             {error && <p className="text-sm text-red-500">{error}</p>}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating Shop...' : 'Create Shop'}
+              {loading ? "Creating Shop..." : "Create Shop"}
             </Button>
           </form>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

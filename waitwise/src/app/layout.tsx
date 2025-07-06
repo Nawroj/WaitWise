@@ -35,7 +35,10 @@ export default function RootLayout({
         </ThemeProvider>
 
         {/* ✅ Correct script loading */}
-        <Script type="text/javascript" src="https://cdn.pinpayments.com/pin.hosted_fields.v1.js"></Script>
+        <Script
+          type="text/javascript"
+          src="https://cdn.pinpayments.com/pin.hosted_fields.v1.js"
+        ></Script>
       </body>
     </html>
   );
