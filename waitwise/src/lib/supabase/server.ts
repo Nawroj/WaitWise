@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 
 // Client for authenticated users in Server Components/Actions (uses cookies)
 export async function createClient(): Promise<SupabaseClient> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
