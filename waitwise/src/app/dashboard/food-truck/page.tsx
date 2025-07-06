@@ -940,30 +940,26 @@ export default function FoodTruckDashboardPage() {
 
 
         // Update the order status in the 'orders' table
-        const { error } = await supabase
+        // Removed 'const { error } =' here because .throwOnError() handles error propagation
+        await supabase
           .from("orders")
           .update({ status: newStatus })
           .eq("id", orderId)
-          .throwOnError(); // Throws an error if the Supabase operation fails
+          .throwOnError(); // This will throw an error if the operation fails, which is caught below.
 
         toast.dismiss(); // Dismiss the loading toast
 
-        if (error) {
-          // This block will only be reached if .throwOnError() wasn't used or if it's caught
-          console.error("Error updating order status:", error);
-          toast.error(`Failed to update order status: ${error.message}`);
-        } else {
-          toast.success(
-            `Order ${orderId.substring(0, 8)}... status updated to ${newStatus}.`,
-          );
+        // If execution reaches here, it means the supabase update was successful.
+        toast.success(
+          `Order ${orderId.substring(0, 8)}... status updated to ${newStatus}.`,
+        );
 
-          // Re-fetch orders and usage counts to update the UI across all relevant sections
-          if (shop?.id) {
-            fetchOrders(shop.id);
-            fetchUsageCounts(shop.id); // This is important to update the usage display
-          }
+        // Re-fetch orders and usage counts to update the UI across all relevant sections
+        if (shop?.id) {
+          fetchOrders(shop.id);
+          fetchUsageCounts(shop.id); // This is important to update the usage display
         }
-      } catch (error: unknown) { // Changed 'any' to 'unknown'
+      } catch (error: unknown) { // This catch block handles errors thrown by .throwOnError()
         // Catch any errors thrown by .throwOnError() or other async operations
         toast.dismiss();
         console.error("Error during order status update or billable event creation:", error);
@@ -975,8 +971,8 @@ export default function FoodTruckDashboardPage() {
       }
     },
     // Dependencies for useCallback:
-    [supabase, shop, fetchOrders, fetchUsageCounts, totalEventCount, preparingOrders], // Removed shop?.id to simply use shop; `preparingOrders` added for notification logic
-  );
+    [supabase, shop, fetchOrders, fetchUsageCounts, totalEventCount, preparingOrders],
+);
 
 // Helper for phone validation (reuse from customer page)
 const isValidAustralianPhone = useCallback((phone: string) => /^(04|\(04\)|\+614|02|03|07|08)\d{8}$/.test(phone.replace(/\s/g, '')), []);
