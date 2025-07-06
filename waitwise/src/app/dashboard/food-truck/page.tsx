@@ -694,101 +694,99 @@ export default function FoodTruckDashboardPage() {
   }, []);
 
   const handleUpdateMenuItem = useCallback(async () => {
-    if (!editingMenuItem || !shop || !newMenuItemName || !newMenuItemPrice) {
-      toast.error("Invalid menu item data.");
-      return;
-    }
+  if (!editingMenuItem || !shop || !newMenuItemName || !newMenuItemPrice) {
+    toast.error("Invalid menu item data.");
+    return;
+  }
 
-    toast.loading("Updating menu item...");
+  toast.loading("Updating menu item...");
 
-    let imageUrlToUpdate = editingMenuItem.image_url;
-    const oldImagePath = editingMenuItem.image_url
-      ? editingMenuItem.image_url.split("/menu-images/")[1]?.split("?")[0]
-      : null;
+  let imageUrlToUpdate = editingMenuItem.image_url;
+  const oldImagePath = editingMenuItem.image_url
+    ? editingMenuItem.image_url.split("/menu-images/")[1]?.split("?")[0]
+    : null;
 
-    try {
-      if (newMenuItemImageFile) {
-        const file = newMenuItemImageFile;
-        const fileExt = file.name.split(".").pop();
-        const newFilePath = `${shop.id}/menu_items/${editingMenuItem.id}.${fileExt}`;
+  try {
+    if (newMenuItemImageFile) {
+      const file = newMenuItemImageFile;
+      const fileExt = file.name.split(".").pop();
+      const newFilePath = `${shop.id}/menu_items/${editingMenuItem.id}.${fileExt}`;
 
-        if (oldImagePath && oldImagePath !== newFilePath) {
-          const { error: deleteOldError } = await supabase.storage
-            .from("menu-images")
-            .remove([oldImagePath]);
-          if (deleteOldError && deleteOldError.message !== "The resource was not found") {
-            console.warn("Could not delete old image from storage:", deleteOldError.message);
-          }
-        }
-
-        const { error: uploadError } = await supabase.storage
-          .from("menu-images")
-          .upload(newFilePath, file, { upsert: true });
-
-        if (uploadError) {
-          toast.dismiss();
-          throw new Error(`Image upload failed: ${uploadError.message}`);
-        }
-        const { data } = supabase.storage
-          .from("menu-images")
-          .getPublicUrl(newFilePath);
-        imageUrlToUpdate = `${data.publicUrl}?t=${new Date().getTime()}`;
-      } else if (oldImagePath && !imagePreviewUrl) { // Case where image is removed
-        const { error: removeError } = await supabase.storage
+      if (oldImagePath && oldImagePath !== newFilePath) {
+        const { error: deleteOldError } = await supabase.storage
           .from("menu-images")
           .remove([oldImagePath]);
-        if (removeError && removeError.message !== "The resource was not found") {
-          console.warn("Could not remove image from storage:", removeError.message);
+        if (deleteOldError && deleteOldError.message !== "The resource was not found") {
+          console.warn("Could not delete old image from storage:", deleteOldError.message);
         }
-        imageUrlToUpdate = null;
       }
 
-      const { error: dbUpdateError } = await supabase
-        .from("menu_items")
-        .update({
-          name: newMenuItemName,
-          description: newMenuItemDescription || null,
-          price: parseFloat(newMenuItemPrice),
-          category: newMenuItemCategory || null,
-          image_url: imageUrlToUpdate,
-        })
-        .eq("id", editingMenuItem.id)
-        .throwOnError();
+      const { error: uploadError } = await supabase.storage
+        .from("menu-images")
+        .upload(newFilePath, file, { upsert: true });
 
-      toast.dismiss();
-      if (!dbUpdateError) {
-        toast.success("Menu item updated!");
-        setEditingMenuItem(null);
-        setNewMenuItemName("");
-        setNewMenuItemDescription("");
-        setNewMenuItemPrice("");
-        setNewMenuItemCategory("");
-        setNewMenuItemImageFile(null);
-        setImagePreviewUrl(null);
-        setActiveEditSection(null);
-      } else {
-        throw new Error(`Failed to update menu item in DB: ${dbUpdateError.message}`);
+      if (uploadError) {
+        toast.dismiss();
+        throw new Error(`Image upload failed: ${uploadError.message}`);
       }
-    } catch (error: unknown) { // Changed 'any' to 'unknown'
-      toast.dismiss();
-      console.error("Update menu item error:", error);
-      let errorMessage = 'An unknown error occurred.';
-      if (error instanceof Error) {
-        errorMessage = error.message;
+      const { data } = supabase.storage
+        .from("menu-images")
+        .getPublicUrl(newFilePath);
+      imageUrlToUpdate = `${data.publicUrl}?t=${new Date().getTime()}`;
+    } else if (oldImagePath && !imagePreviewUrl) {
+      const { error: removeError } = await supabase.storage
+        .from("menu-images")
+        .remove([oldImagePath]);
+      if (removeError && removeError.message !== "The resource was not found") {
+        console.warn("Could not remove image from storage:", removeError.message);
       }
-      toast.error(`Failed to update menu item: ${errorMessage}`);
+      imageUrlToUpdate = null;
     }
-  }, [
-    editingMenuItem,
-    shop,
-    newMenuItemName,
-    newMenuItemPrice,
-    newMenuItemImageFile,
-    supabase,
-    newMenuItemDescription,
-    newMenuItemCategory,
-    imagePreviewUrl,
-  ]);
+
+    // Direct execution: if .throwOnError() doesn't throw, it's a success
+    await supabase
+      .from("menu_items")
+      .update({
+        name: newMenuItemName,
+        description: newMenuItemDescription || null,
+        price: parseFloat(newMenuItemPrice),
+        category: newMenuItemCategory || null,
+        image_url: imageUrlToUpdate,
+      })
+      .eq("id", editingMenuItem.id)
+      .throwOnError(); // This will throw on error, jumping to the catch block
+
+    toast.dismiss();
+    toast.success("Menu item updated!");
+    setEditingMenuItem(null);
+    setNewMenuItemName("");
+    setNewMenuItemDescription("");
+    setNewMenuItemPrice("");
+    setNewMenuItemCategory("");
+    setNewMenuItemImageFile(null);
+    setImagePreviewUrl(null);
+    setActiveEditSection(null);
+
+  } catch (error: unknown) {
+    toast.dismiss();
+    console.error("Update menu item error:", error);
+    let errorMessage = 'An unknown error occurred.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    toast.error(`Failed to update menu item: ${errorMessage}`);
+  }
+}, [
+  editingMenuItem,
+  shop,
+  newMenuItemName,
+  newMenuItemPrice,
+  newMenuItemImageFile,
+  supabase,
+  newMenuItemDescription,
+  newMenuItemCategory,
+  imagePreviewUrl,
+]);
 
   const handleDeleteMenuItem = useCallback(
     async (itemId: string, imageUrl: string | null) => {
