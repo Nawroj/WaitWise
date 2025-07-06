@@ -22,7 +22,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter, // Added for shop details form
+  CardFooter,
 } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -73,22 +73,22 @@ import {
   MoreVertical,
   Loader2,
   Settings,
-  UtensilsCrossed, // For menu items
+  UtensilsCrossed,
   PlusCircle,
   CheckCircle2,
   XCircle,
   Clock,
-  ChefHat, // For preparing orders
-  PackageCheck, // For ready for pickup orders
-  History, // For client history
+  ChefHat,
+  PackageCheck,
+  History,
   Store,
-  Info, // For shop details
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, easeInOut } from "framer-motion";
-import { Elements } from "@stripe/react-stripe-js"; // For Stripe integration
-import { loadStripe } from "@stripe/stripe-js"; // For Stripe integration
-import { StripePaymentForm } from "../../../components/ui/StripePaymentForm"; // For Stripe integration
+import { Elements } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import { StripePaymentForm } from "../../../components/ui/StripePaymentForm";
 
 // Animation Variants (consistent with other dashboards)
 const fadeIn = {
@@ -105,7 +105,6 @@ const staggerContainer = {
 };
 
 // Type definitions specific to Food Truck Dashboard
-// Merged relevant fields from Barber Shop's Shop type
 type Shop = {
   id: string;
   name: string;
@@ -116,13 +115,13 @@ type Shop = {
   subscription_status: "trial" | "active" | "past_due" | null;
   opening_time: string | null;
   closing_time: string | null;
-  account_balance?: number; // From Barber Shop
-  stripe_customer_id: string | null; // From Barber Shop
-  stripe_payment_method_id: string | null; // From Barber Shop
+  account_balance?: number;
+  stripe_customer_id: string | null;
+  stripe_payment_method_id: string | null;
   type: "hair_salon" | "restaurant" | "food_truck";
   enable_online_payments: boolean;
   pass_stripe_fees_to_customer: boolean;
-  stripe_connect_account_id: string | null; // Ensure this is here
+  stripe_connect_account_id: string | null;
   is_charges_enabled: boolean;
 };
 
@@ -135,6 +134,8 @@ type MenuItem = {
   image_url: string | null;
   is_available: boolean;
   created_at: string;
+  // Added quantity here for manualCart typing consistency
+  quantity: number;
 };
 
 type Order = {
@@ -217,7 +218,7 @@ export default function FoodTruckDashboardPage() {
   const [manualClientName, setManualClientName] = useState('');
   const [manualClientPhone, setManualClientPhone] = useState('');
   const [manualOrderNotes, setManualOrderNotes] = useState('');
-  // Use MenuItem[] for manualCart to ensure consistency with menuItems structure
+  // Using MenuItem[] for manualCart for consistency with menuItems structure
   const [manualCart, setManualCart] = useState<MenuItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -305,8 +306,8 @@ export default function FoodTruckDashboardPage() {
       setEditedOpeningTime(shopData.opening_time || "00:00"); // Default for food truck
       setEditedClosingTime(shopData.closing_time || "23:59"); // Default for food truck
       setEnableOnlinePayments(shopData.enable_online_payments ?? true); // Default to true if null/undefined
-    setPassStripeFees(shopData.pass_stripe_fees_to_customer ?? false); // Default to false if null/undefined
-    return shopData;
+      setPassStripeFees(shopData.pass_stripe_fees_to_customer ?? false); // Default to false if null/undefined
+      return shopData;
     },
     [supabase, router],
   );
@@ -414,10 +415,14 @@ export default function FoodTruckDashboardPage() {
       // Redirect the user to Stripe's onboarding URL
       window.location.href = data.url;
 
-    } catch (error: any) {
+    } catch (error: unknown) { // Changed 'any' to 'unknown'
       toast.dismiss("onboarding-toast");
       console.error("Stripe onboarding error:", error);
-      toast.error(`Failed to start onboarding: ${error.message || 'Please try again.'}`);
+      let errorMessage = 'Please try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error(`Failed to start onboarding: ${errorMessage}`);
     }
   }, [shop]);
 
@@ -465,7 +470,7 @@ export default function FoodTruckDashboardPage() {
   useEffect(() => {
     if (shop?.subscription_status === "past_due") {
       const fetchFailedInvoice = async () => {
-        const { data, error } = await supabase
+        const { data, error: fetchError } = await supabase // Renamed 'error' to 'fetchError' to avoid shadowing
           .from("invoices")
           .select(
             "id, amount_due, created_at, status, stripe_charge_id, month, amount_paid, currency, due_date",
@@ -476,8 +481,8 @@ export default function FoodTruckDashboardPage() {
           .limit(1)
           .single();
 
-        if (error) {
-          console.error("Error fetching failed invoice:", error);
+        if (fetchError) { // Use fetchError here
+          console.error("Error fetching failed invoice:", fetchError);
         } else {
           setFailedInvoice(data);
         }
@@ -570,11 +575,11 @@ export default function FoodTruckDashboardPage() {
   }, [shop, supabase, fetchMenuItems, fetchOrders, fetchUsageCounts]);
 
   // QR Code Generation
-  const generateQRCode = async () => {
+  const generateQRCode = useCallback(async () => { // Wrapped in useCallback
     if (!shop) return;
     const url = `${window.location.origin}/shop/${shop.id}`;
     try {
-      const QRCode = (await import('qrcode')).default;
+      const QRCodeModule = (await import('qrcode')).default; // Renamed to avoid conflict
       const options = {
         errorCorrectionLevel: "H" as const,
         type: "image/png" as const,
@@ -584,13 +589,17 @@ export default function FoodTruckDashboardPage() {
           light: "#FFFFFF",
         },
       };
-      const dataUrl = await QRCode.toDataURL(url, options);
+      const dataUrl = await QRCodeModule.toDataURL(url, options); // Use renamed import
       setQrCodeDataUrl(dataUrl);
-    } catch (err) {
+    } catch (err: unknown) { // Changed 'any' to 'unknown'
       console.error("Failed to generate QR code", err);
-      toast.error("Could not generate QR code. Please try again.");
+      let errorMessage = 'An unknown error occurred.';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      toast.error(`Could not generate QR code: ${errorMessage}`);
     }
-  };
+  }, [shop]); // Added shop as dependency
 
   // Auto-generate QR code when the QR section is activated if not already generated
   useEffect(() => {
@@ -731,7 +740,7 @@ export default function FoodTruckDashboardPage() {
           .from("menu-images")
           .getPublicUrl(newFilePath);
         imageUrlToUpdate = `${data.publicUrl}?t=${new Date().getTime()}`;
-      } else if (oldImagePath && !imagePreviewUrl) {
+      } else if (oldImagePath && !imagePreviewUrl) { // Case where image is removed
         const { error: removeError } = await supabase.storage
           .from("menu-images")
           .remove([oldImagePath]);
@@ -767,10 +776,14 @@ export default function FoodTruckDashboardPage() {
       } else {
         throw new Error(`Failed to update menu item in DB: ${dbUpdateError.message}`);
       }
-    } catch (error: any) {
+    } catch (error: unknown) { // Changed 'any' to 'unknown'
       toast.dismiss();
       console.error("Update menu item error:", error);
-      toast.error(`Failed to update menu item: ${error.message}`);
+      let errorMessage = 'An unknown error occurred.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error(`Failed to update menu item: ${errorMessage}`);
     }
   }, [
     editingMenuItem,
@@ -815,10 +828,14 @@ export default function FoodTruckDashboardPage() {
           .throwOnError();
         toast.dismiss();
         toast.success("Menu item deleted.");
-      } catch (error: any) {
+      } catch (error: unknown) { // Changed 'any' to 'unknown'
         toast.dismiss();
         console.error("Delete menu item error:", error);
-        toast.error(`Could not delete menu item: ${error.message}`);
+        let errorMessage = 'An unknown error occurred.';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        toast.error(`Could not delete menu item: ${errorMessage}`);
       }
     },
     [supabase],
@@ -907,7 +924,7 @@ export default function FoodTruckDashboardPage() {
                   {
                     body: {
                       entity_id: orderId, // The order ID
-                      type: 'order',      // Specify type as 'order' for the generic Edge Function
+                      type: 'order',     // Specify type as 'order' for the generic Edge Function
                     },
                   },
                 );
@@ -955,18 +972,20 @@ export default function FoodTruckDashboardPage() {
             fetchUsageCounts(shop.id); // This is important to update the usage display
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) { // Changed 'any' to 'unknown'
         // Catch any errors thrown by .throwOnError() or other async operations
         toast.dismiss();
         console.error("Error during order status update or billable event creation:", error);
-        toast.error(`Failed to update order: ${error.message || "An unexpected error occurred."}`);
+        let errorMessage = 'An unexpected error occurred.';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        toast.error(`Failed to update order: ${errorMessage}`);
       }
     },
     // Dependencies for useCallback:
-    [supabase, shop?.id, fetchOrders, fetchUsageCounts, totalEventCount, shop?.subscription_status, preparingOrders], // ADDED preparingOrders to dependencies
+    [supabase, shop, fetchOrders, fetchUsageCounts, totalEventCount, preparingOrders], // Removed shop?.id to simply use shop; `preparingOrders` added for notification logic
   );
-
-  // ... (existing handle... functions, e.g., handleUpdateOrderStatus)
 
 // Helper for phone validation (reuse from customer page)
 const isValidAustralianPhone = useCallback((phone: string) => /^(04|\(04\)|\+614|02|03|07|08)\d{8}$/.test(phone.replace(/\s/g, '')), []);
@@ -976,12 +995,10 @@ const isValidAustralianPhone = useCallback((phone: string) => /^(04|\(04\)|\+614
 const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
   e.preventDefault(); // Prevent default form submission
 
-  // MODIFIED: !manualClientPhone removed from initial validation. Name is now the only mandatory field besides cart items.
   if (manualCart.length === 0 || !manualClientName) {
     toast.error('Please add items and fill in the customer name for the manual order.');
     return;
   }
-  // MODIFIED: Only validate phone if it's provided (since it's now optional)
   if (manualClientPhone && !isValidAustralianPhone(manualClientPhone)) {
     toast.error('Please enter a valid 10-digit Australian phone number for the customer, or leave it blank.');
     return;
@@ -1002,7 +1019,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
       .insert({
         shop_id: shop.id, // Use current shop ID
         client_name: manualClientName,
-        client_phone: manualClientPhone || null, // MODIFIED: Send null if phone is empty/undefined
+        client_phone: manualClientPhone || null,
         total_amount: totalAmount,
         surcharge_amount: 0, // No surcharge for manual orders
         status: 'preparing', // Mark as completed immediately for manual cash orders
@@ -1064,15 +1081,19 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
     fetchOrders(shop.id);
     fetchUsageCounts(shop.id);
 
-  } catch (error: any) {
+  } catch (error: unknown) { // Changed 'any' to 'unknown'
     toast.dismiss("manual-order-toast");
     console.error("Error adding manual order:", error);
-    toast.error(`Failed to add manual order: ${error.message || 'An unknown error occurred.'}`);
+    let errorMessage = 'An unknown error occurred.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    toast.error(`Failed to add manual order: ${errorMessage}`);
   }
 }, [manualCart, manualClientName, manualClientPhone, manualOrderNotes, shop, supabase, fetchOrders, fetchUsageCounts, isValidAustralianPhone]);
 
   // Handle Update Shop Details (from Barber Shop dashboard)
-  const handleUpdateShopDetails = async () => {
+  const handleUpdateShopDetails = useCallback(async () => { // Wrapped in useCallback
     if (!shop) return;
 
     toast.loading("Updating shop details...");
@@ -1113,7 +1134,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
         }
       }
       logoUrlToUpdate = null; // Ensure DB entry is null
-      
+
     }
 
 
@@ -1126,7 +1147,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
         closing_time: editedClosingTime,
         logo_url: logoUrlToUpdate,
         enable_online_payments: enableOnlinePayments,
-      pass_stripe_fees_to_customer: passStripeFees,
+        pass_stripe_fees_to_customer: passStripeFees,
       })
       .eq("id", shop.id)
       .select()
@@ -1146,10 +1167,13 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
       setNewShopLogoFile(null); // Clear file input state
       setLogoPreviewUrl(updatedShop.logo_url); // Ensure preview matches new state
     }
-  };
+  }, [
+    shop, editedShopName, editedShopAddress, editedOpeningTime, editedClosingTime,
+    newShopLogoFile, logoPreviewUrl, enableOnlinePayments, passStripeFees, supabase
+  ]); // Added dependencies
 
   // Handles deleting the shop logo (from Barber Shop dashboard)
-  const handleDeleteLogo = async () => {
+  const handleDeleteLogo = useCallback(async () => { // Wrapped in useCallback
     if (!shop || !shop.logo_url) return;
 
     if (
@@ -1195,7 +1219,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
       toast.error(`Failed to delete logo: ${errorMessage}`);
       console.error("Delete logo error:", error);
     }
-  };
+  }, [shop, supabase]); // Added dependencies
 
 
   // Handles click on the "Upgrade Now" button in billing (from Barber Shop dashboard)
@@ -1308,16 +1332,19 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
         }
         setIsBillingDialogOpen(false);
       }
-    } catch (error: unknown) {
+    } catch (error: unknown) { // Changed 'any' to 'unknown'
       toast.dismiss("retry-payment-toast");
       console.error("Unexpected error during payment retry:", error);
-      toast.error("An unexpected error occurred during payment retry.");
+      let errorMessage = 'An unexpected error occurred during payment retry.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast.error(errorMessage);
     }
   }, [shop, failedInvoice, supabase]);
 
 
   // Renders the content for different edit dialog sections
-  // Merged renderEditDialogContent for details and QR (from Barber Shop)
   const renderEditDialogContent = useCallback(() => {
     if (!activeEditSection) return null;
 
@@ -1328,30 +1355,30 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
             <DialogHeader>
               <DialogTitle>Edit Food Truck Details</DialogTitle>
               <DialogDescription>
-                Manage your food truck's general information.
+                Manage your food truck&apos;s general information.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 mt-4 border-t pt-4">
-    <h3 className="font-semibold">Payment Options</h3>
-    <div className="flex items-center space-x-2">
-        <Switch
-            id="enable-online-payments"
-            checked={enableOnlinePayments}
-            onCheckedChange={setEnableOnlinePayments}
-        />
-        <Label htmlFor="enable-online-payments">Enable Online Payments (Stripe Checkout)</Label>
-    </div>
-    {enableOnlinePayments && ( // Only show if online payments are enabled
-        <div className="flex items-center space-x-2">
-            <Switch
-                id="pass-stripe-fees"
-                checked={passStripeFees}
-                onCheckedChange={setPassStripeFees}
-            />
-            <Label htmlFor="pass-stripe-fees">Pass Stripe Fees to Customer as Surcharge</Label>
-        </div>
-    )}
-</div>
+              <h3 className="font-semibold">Payment Options</h3>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="enable-online-payments"
+                  checked={enableOnlinePayments}
+                  onCheckedChange={setEnableOnlinePayments}
+                />
+                <Label htmlFor="enable-online-payments">Enable Online Payments (Stripe Checkout)</Label>
+              </div>
+              {enableOnlinePayments && ( // Only show if online payments are enabled
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="pass-stripe-fees"
+                    checked={passStripeFees}
+                    onCheckedChange={setPassStripeFees}
+                  />
+                  <Label htmlFor="pass-stripe-fees">Pass Stripe Fees to Customer as Surcharge</Label>
+                </div>
+              )}
+            </div>
             <div className="py-4">
               <Card className="border-none shadow-none">
                 <CardContent className="grid gap-4 pt-4">
@@ -1623,7 +1650,8 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
     generateQRCode,
     shop, // Added shop as a dependency for shop details edit (logo_url, name)
     editedShopName, editedShopAddress, editedOpeningTime, editedClosingTime,
-    newShopLogoFile, logoPreviewUrl, handleDeleteLogo, handleUpdateShopDetails
+    newShopLogoFile, logoPreviewUrl, handleDeleteLogo, handleUpdateShopDetails,
+    enableOnlinePayments, passStripeFees, // Added these for shop details form
   ]);
 
   if (loading) {
@@ -1642,9 +1670,8 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background">
         <p className="text-muted-foreground mb-4">
-          You don't have a food truck shop set up yet.
+          You don&apos;t have a food truck shop set up yet.
         </p>
-        {/* Placeholder for actual shop creation if needed */}
         <Button onClick={() => router.push("/create-shop-food-truck")}>
           Create Your Food Truck Shop
         </Button>
@@ -1682,7 +1709,6 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
         )}
 
         {/* This Accordion is for Order Items within the card itself */}
-        {/* Only closed by default for 'Ready for Pickup' section */}
         <Accordion
           type="single"
           collapsible
@@ -1733,7 +1759,6 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
         </CardTitle>
         <CardDescription>
           Client: {order.client_name}
-          {/* Removed client.client_phone display here */}
           <span className="block text-sm">
             Time: {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
@@ -1831,8 +1856,8 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                       Edit Shop Details
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setIsAddOrderDialogOpen(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Order
-                </DropdownMenuItem>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Order
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setActiveEditSection("qr")}>
                       Get QR Code
                     </DropdownMenuItem>
@@ -1843,7 +1868,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                     {/* NEW: Onboarding link in mobile settings */}
                     {!shop.is_charges_enabled && (
                         <DropdownMenuItem onSelect={handleOnboardStripeAccount}>
-                            <CreditCard className="mr-2 h-4 w-4" /> Setup Payments
+                          <CreditCard className="mr-2 h-4 w-4" /> Setup Payments
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
@@ -1901,7 +1926,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
             </Link>
             <Button onClick={() => setIsAddOrderDialogOpen(true)} className="bg-green-600 hover:bg-green-700 text-white">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Order
-          </Button>
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button className="transition-transform hover:scale-105">
@@ -2004,23 +2029,21 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                   <Input id="manual-client-name" placeholder="e.g., Jane Doe" value={manualClientName} onChange={e => setManualClientName(e.target.value)} required />
               </div>
               <div className="grid gap-2">
-                  <Label htmlFor="manual-client-phone">Customer Phone (Optional)</Label> {/* MODIFIED Label */}
+                  <Label htmlFor="manual-client-phone">Customer Phone (Optional)</Label>
                   <Input
                       id="manual-client-phone"
                       type="tel"
                       placeholder="e.g., 0412 345 678"
                       value={manualClientPhone}
                       onChange={e => setManualClientPhone(e.target.value)}
-                      // REMOVED: required attribute
                   />
-                  {/* Phone Number Information Helper */}
                   <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1 italic">
                       <Info className="h-3 w-3 inline-block" />
                       Phone number is used for SMS notifications when the order is ready.
                   </p>
               </div>
               <div className="grid gap-2">
-                  <Label htmlFor="manual-order-notes">Notes (Optional)</Label>
+                  <Label htmlFor="manual-order-notes">Special Requests/Notes (Optional)</Label>
                   <Input id="manual-order-notes" placeholder="e.g., extra sauce" value={manualOrderNotes} onChange={e => setManualOrderNotes(e.target.value)} />
               </div>
 
@@ -2059,7 +2082,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                               if (existing) {
                                   return prevCart.map(item => item.id === itemToAdd.id ? { ...item, quantity: item.quantity + 1 } : item);
                               }
-                              return [...prevCart, { ...itemToAdd, quantity: 1 }];
+                              return [...prevCart, { ...itemToAdd, quantity: 1 }]; // Ensure quantity is initialized
                           });
                       }
                   }} value=""> {/* Reset select value after selection */}
@@ -2085,7 +2108,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
           </form>
         </DialogContent>
       </Dialog>
-      {/* END NEW: Add Order Dialog */}
+        {/* END NEW: Add Order Dialog */}
 
         {/* Billing Dialog */}
         <Dialog
@@ -2384,7 +2407,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                       Orders In Progress
                     </CardTitle>
                     <CardDescription>
-                      These orders are currently being prepared. Mark them as 'Ready for Pickup' when done.
+                      These orders are currently being prepared. Mark them as &apos;Ready for Pickup&apos; when done.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -2402,7 +2425,6 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                                     handleUpdateOrderStatus(order.id, "ready_for_pickup")
                                   }
                                   className="w-full"
-                                  // --- DISABLED WHEN TRIAL LIMIT REACHED ---
                                   disabled={
                                     totalEventCount >= 50 &&
                                     (shop.subscription_status === "trial" ||
@@ -2411,7 +2433,6 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                                 >
                                   <PackageCheck className="mr-2 h-4 w-4" /> Ready for Pickup
                                 </Button>
-                                {/* Display upgrade prompt if disabled */}
                                 {totalEventCount >= 50 &&
                                   (shop.subscription_status === "trial" ||
                                     shop.subscription_status === null) && (
@@ -2462,7 +2483,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                       Ready for Pickup
                     </CardTitle>
                     <CardDescription>
-                      These orders are ready for customers to collect. Tap 'Completed' when picked up.
+                      These orders are ready for customers to collect. Tap &apos;Completed&apos; when picked up.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -2480,7 +2501,6 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                                     handleUpdateOrderStatus(order.id, "completed")
                                   }
                                   className="w-full"
-                                  // --- DISABLED WHEN TRIAL LIMIT REACHED ---
                                   disabled={
                                     totalEventCount >= 50 &&
                                     (shop.subscription_status === "trial" ||
@@ -2489,7 +2509,6 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                                 >
                                   <CheckCircle2 className="mr-2 h-4 w-4" /> Completed
                                 </Button>
-                                {/* Display upgrade prompt if disabled */}
                                 {totalEventCount >= 50 &&
                                   (shop.subscription_status === "trial" ||
                                     shop.subscription_status === null) && (
@@ -2584,12 +2603,12 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
                                     <TableCell>{new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</TableCell>
                                     <TableCell className="text-right text-sm text-muted-foreground">
                                       {order.order_items.slice(0,2).map((oi) => oi.quantity + 'x ' + (oi.menu_items?.name || 'Item')).join(', ') +
-                                       (order.order_items.length > 2 ? ', ...' : '')}
+                                         (order.order_items.length > 2 ? ', ...' : '')}
                                     </TableCell>
                                   </TableRow>
                                 ))}
-                          </TableBody>
-                        </Table>
+                            </TableBody>
+                          </Table>
                         )}
                         {clientHistory.length > 5 && (
                           <div className="flex justify-center mt-4">
