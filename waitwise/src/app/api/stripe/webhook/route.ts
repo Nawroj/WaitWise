@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Webhook Error: ${errorMessage}` }, { status: 400 });
   }
 
-  const supabase = createClient(); // Server-side Supabase client instance
+  const supabase = await createClient(); // Server-side Supabase client instance
 
   // 3. Handle the event
   try {
