@@ -538,13 +538,22 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
               </div>
             </div>
             <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="secondary" disabled={isSubmitting || loading}>Cancel</Button>
-              </DialogClose>
-              <Button type="submit" disabled={isSubmitting || loading || cart.length === 0 || !clientName || (clientPhone && !isValidAustralianPhone(clientPhone))}>
-                {isSubmitting ? 'Confirming...' : 'Proceed to Pay'}
-              </Button>
-            </DialogFooter>
+  <DialogClose asChild>
+    <Button type="button" variant="secondary" disabled={isSubmitting || loading}>Cancel</Button>
+  </DialogClose>
+  <Button
+    type="submit"
+    disabled={
+      isSubmitting ||
+      loading ||
+      cart.length === 0 ||
+      !clientName ||
+      (clientPhone !== '' && !isValidAustralianPhone(clientPhone)) // FIXED LINE
+    }
+  >
+    {isSubmitting ? 'Confirming...' : 'Proceed to Pay'}
+  </Button>
+</DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
