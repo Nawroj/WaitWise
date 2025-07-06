@@ -22,7 +22,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -58,18 +57,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from "../../../components/ui/dropdown-menu";
 import {
   Trash2,
   Edit,
   RefreshCw,
-  QrCode,
   CreditCard,
   Wand2,
-  ListPlus,
   MoreVertical,
   Loader2,
   Settings,
@@ -77,7 +71,6 @@ import {
   PlusCircle,
   CheckCircle2,
   XCircle,
-  Clock,
   ChefHat,
   PackageCheck,
   History,
