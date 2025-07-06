@@ -51,9 +51,9 @@ export function createServiceRoleClient(): SupabaseClient {
   }
 
   const dummyCookieStore = {
-    get: (_: string) => undefined,
-    set: (_: string, __: string, ___: CookieOptions) => {},
-    remove: (_: string, __: CookieOptions) => {},
+    get: () => undefined,
+    set: () => {},
+    remove: () => {},
   };
 
   return createServerClient(
