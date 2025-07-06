@@ -213,7 +213,7 @@ export default function FoodTruckDashboardPage() {
   const [manualOrderNotes, setManualOrderNotes] = useState('');
   // Using MenuItem[] for manualCart for consistency with menuItems structure
   const [manualCart, setManualCart] = useState<MenuItem[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting] = useState(false);
 
   // States for shop details editing (from Barber Shop dashboard)
   const [editedShopName, setEditedShopName] = useState("");
@@ -814,7 +814,7 @@ export default function FoodTruckDashboardPage() {
           }
         }
 
-        const { error } = await supabase
+        await supabase
           .from("menu_items")
           .delete()
           .eq("id", itemId)
@@ -1643,7 +1643,7 @@ const handleAddManualOrder = useCallback(async (e: React.FormEvent) => {
     generateQRCode,
     shop, // Added shop as a dependency for shop details edit (logo_url, name)
     editedShopName, editedShopAddress, editedOpeningTime, editedClosingTime,
-    newShopLogoFile, logoPreviewUrl, handleDeleteLogo, handleUpdateShopDetails,
+    logoPreviewUrl, handleDeleteLogo, handleUpdateShopDetails,
     enableOnlinePayments, passStripeFees, // Added these for shop details form
   ]);
 
