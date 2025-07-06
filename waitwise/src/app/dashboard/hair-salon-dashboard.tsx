@@ -65,7 +65,6 @@ import {
   Store,
   Users,
   PauseCircle, // Added for break icon
-  PlayCircle, // Added for break icon
 } from "lucide-react";
 import {
   Avatar,
@@ -264,26 +263,26 @@ export default function DashboardPage() {
     [supabase],
   );
 
-  const generateQRCode = async () => {
-    if (!shop) return;
-    const url = `${window.location.origin}/shop/${shop.id}`;
-    try {
-      const options = {
-        errorCorrectionLevel: "H" as const,
-        type: "image/png" as const,
-        margin: 1,
-        color: {
-          dark: "#000000",
-          light: "#FFFFFF",
-        },
-      };
-      const dataUrl = await QRCode.toDataURL(url, options);
-      setQrCodeDataUrl(dataUrl);
-    } catch (err) {
-      console.error("Failed to generate QR code", err);
-      toast.error("Could not generate QR code. Please try again.");
-    }
-  };
+  const generateQRCode = useCallback(async () => {
+  if (!shop) return;
+  const url = `${window.location.origin}/shop/${shop.id}`;
+  try {
+    const options = {
+      errorCorrectionLevel: "H" as const,
+      type: "image/png" as const,
+      margin: 1,
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF",
+      },
+    };
+    const dataUrl = await QRCode.toDataURL(url, options);
+    setQrCodeDataUrl(dataUrl);
+  } catch (err) {
+    console.error("Failed to generate QR code", err);
+    toast.error("Could not generate QR code. Please try again.");
+  }
+}, [shop]);
 
   // Fetches shop's services and barbers
   const fetchShopData = useCallback(
@@ -773,10 +772,14 @@ export default function DashboardPage() {
           console.log(`Notification for client ${nextInQueue.id} already sent. Skipping re-send.`);
           toast.info("Notification for this client has already been sent.");
         }
-      } catch (error: any) {
-        console.error("Unexpected error in notification logic:", error);
-        toast.error(`An unexpected error occurred during notification: ${error.message}`);
-      }
+      } catch (error: unknown) {
+  console.error("Unexpected error in notification logic:", error);
+  let errorMessage = "An unexpected error occurred during notification.";
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+  toast.error(`An unexpected error occurred during notification: ${errorMessage}`);
+}
     }
   };
 
@@ -2426,8 +2429,8 @@ export default function DashboardPage() {
                     {/* Key Metrics Cards */}
                     <div className="grid gap-4 md:grid-cols-3 mb-8">
                       {/* Corrected: Wrap Card with motion.div for animations */}
-                      <motion.div variants={fadeIn} whileHover="hover" variants={cardHover}>
-                        <Card className="h-full w-full"> {/* Card is now a child */}
+                      <motion.div variants={fadeIn} whileHover="hover">
+    <Card className="h-full w-full"> {/* Card is now a child */}
                           <CardHeader>
                             <CardTitle>Total Revenue</CardTitle>
                           </CardHeader>
@@ -2439,7 +2442,7 @@ export default function DashboardPage() {
                         </Card>
                       </motion.div>
                       {/* Repeat for other two analytics cards */}
-                      <motion.div variants={fadeIn} whileHover="hover" variants={cardHover}>
+                      <motion.div variants={fadeIn} whileHover="hover">
                         <Card className="h-full w-full">
                           <CardHeader>
                             <CardTitle>Customers Served</CardTitle>
@@ -2451,7 +2454,7 @@ export default function DashboardPage() {
                           </CardContent>
                         </Card>
                       </motion.div>
-                      <motion.div variants={fadeIn} whileHover="hover" variants={cardHover}>
+                      <motion.div variants={fadeIn} whileHover="hover">
                         <Card className="h-full w-full">
                           <CardHeader>
                             <CardTitle>No-Show Rate</CardTitle>
