@@ -6,8 +6,6 @@ import OrderPage from "./OrderPage"; // Client component for food trucks (orderi
 import { notFound } from "next/navigation"; // For handling cases where shop is not found
 
 // --- Type Definitions (ensure these match your database schema precisely) ---
-
-// General Shop type
 type Shop = {
   id: string;
   name: string;
@@ -16,35 +14,13 @@ type Shop = {
   opening_time: string | null;
   closing_time: string | null;
   type: "hair_salon" | "restaurant" | "food_truck"; // Crucial for routing logic
+  // If your database always selects these, you can remove '?'
+  enable_online_payments?: boolean;
+  pass_stripe_fees_to_customer?: boolean;
+  stripe_connect_account_id?: string | null;
+  is_charges_enabled?: boolean;
 };
 
-// Types specific to Hair Salon (used by BookingClient)
-type Service = { // Changed from Offering to Service
-  id: string;
-  name: string;
-  price: number;
-  duration_minutes: number;
-};
-
-type Barber = { // Changed from StaffMember to Barber
-  id: string;
-  name: string;
-  avatar_url: string | null;
-  is_on_break: boolean;
-  is_working_today: boolean;
-  break_end_time: string | null;
-};
-
-// Type specific to Food Truck (used by OrderPage)
-type MenuItem = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  category: string | null;
-  image_url: string | null;
-  is_available: boolean;
-};
 
 // --- ShopPage Server Component ---
 export default async function ShopPage({ params }: { params: { id: string } }) { // Destructure params directly from props
