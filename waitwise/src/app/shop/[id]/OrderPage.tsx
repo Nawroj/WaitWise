@@ -74,7 +74,6 @@ interface OrderPageProps {
 }
 
 export default function OrderPage({ shop, menuItems }: OrderPageProps) {
-  const supabase = useMemo(() => createClient(), []); // Memoize supabase client creation if it's consistently the same instance
 
   // --- General States ---
   const [clientName, setClientName] = useState('');

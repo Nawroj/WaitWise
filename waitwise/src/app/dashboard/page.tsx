@@ -6,7 +6,6 @@ import { createClient } from "../../lib/supabase/client"; // Adjust path as need
 import { Loader2 } from "lucide-react";
 import { CreateShopForm } from "../../components/ui/CreateShopForm"; // Keep this import for new shop creation
 import HairSalonDashboard from "./hair-salon-dashboard"; // Import the renamed hair salon dashboard
-import { User } from '@supabase/supabase-js'; // Import the User type from Supabase
 
 // Define the Shop type here as well, consistent with other files
 type Shop = {
