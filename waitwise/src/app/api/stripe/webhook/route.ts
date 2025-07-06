@@ -6,7 +6,7 @@ import { createClient } from '../../../../lib/supabase/server'; // Adjust path t
 
 // Initialize Stripe with your secret key
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20', // Use a recent stable API version
+  apiVersion: '2025-06-30.basil', // Use a recent stable API version
 });
 
 // Important: Next.js API Routes (App Router) need bodyParser: false for webhooks
