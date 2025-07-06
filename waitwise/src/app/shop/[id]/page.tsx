@@ -10,18 +10,14 @@ import { notFound } from "next/navigation"; // For handling cases where shop is 
 
 
 // --- ShopPage Server Component ---
-interface ShopPageProps {
-  params: {
-    id: string;
-  };
-  // You could also add searchParams here if your route uses them:
-  // searchParams?: { [key: string]: string | string[] | undefined };
-}
+
 
 // Applied to the component function
-export default async function ShopPage({ params }: ShopPageProps) { // Destructure params directly from props
-  const { id: shopId } = params;
-  const supabase = await createClient(); // Initialize server-side Supabase client
+export default async function ShopPage({ params }: { params: Promise<{ id: string }> }) {
+  // Await the params
+  const { id: shopId } = await params
+
+  const supabase = await createClient()// Initialize server-side Supabase client
 
   console.log(`[ShopPage Server] Fetching shop with ID: ${shopId}`);
 
