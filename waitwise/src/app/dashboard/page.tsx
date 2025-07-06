@@ -6,6 +6,7 @@ import { createClient } from "../../lib/supabase/client"; // Adjust path as need
 import { Loader2 } from "lucide-react";
 import { CreateShopForm } from "../../components/ui/CreateShopForm"; // Keep this import for new shop creation
 import HairSalonDashboard from "./hair-salon-dashboard"; // Import the renamed hair salon dashboard
+import { User } from '@supabase/supabase-js'; // Import the User type from Supabase
 
 // Define the Shop type here as well, consistent with other files
 type Shop = {
@@ -30,13 +31,14 @@ export default function DashboardRouterPage() {
 
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null); // State to hold user info
+  // Removed the 'user' state as it was assigned but never used.
+  // The 'currentUser' variable from supabase.auth.getUser() is used directly.
 
   useEffect(() => {
     async function fetchUserAndShopType() {
       setLoading(true);
       const {
-        data: { user: currentUser },
+        data: { user: currentUser }, // Destructure currentUser directly
         error: userError,
       } = await supabase.auth.getUser();
 
@@ -44,12 +46,12 @@ export default function DashboardRouterPage() {
         router.push("/login"); // Redirect to login if no user session
         return;
       }
-      setUser(currentUser); // Store user info
+      // Removed setUser(currentUser); as the 'user' state is no longer needed.
 
       const { data: shopData, error: shopError } = await supabase
         .from("shops")
         .select("*")
-        .eq("owner_id", currentUser.id)
+        .eq("owner_id", currentUser.id) // Use currentUser directly
         .single();
 
       if (shopError && shopError.code !== "PGRST116") {
@@ -88,6 +90,7 @@ export default function DashboardRouterPage() {
 
   if (!shop) {
     // If no shop exists for the user, display the form to create one
+    // Pass the current user's ID to the form if needed for initial shop creation
     return <CreateShopForm onShopCreated={setShop} />;
   }
 

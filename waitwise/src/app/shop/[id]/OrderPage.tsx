@@ -2,19 +2,19 @@
 
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react' // Removed useEffect
 import Image from 'next/image'
-import { createClient } from '../../../lib/supabase/client' // Adjust path if needed
+import { createClient } from '../../../lib/supabase/client'
 import { Button } from "../../../components/ui/button"
 import { Input } from "../../../components/ui/input"
 import { Label } from "../../../components/ui/label"
 import { Separator } from '../../../components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert'
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../../../components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card' // Removed CardFooter
 import { Badge } from '../../../components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../../../components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../components/ui/collapsible'
-import { ShoppingCart, UtensilsCrossed, CheckCircle2, Trash2, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { ShoppingCart, UtensilsCrossed, CheckCircle2, Trash2, ChevronDown, Info } from 'lucide-react' // Removed ChevronUp
 import { toast } from "sonner"
 import { motion, easeInOut } from 'framer-motion'
 
@@ -74,7 +74,7 @@ interface OrderPageProps {
 }
 
 export default function OrderPage({ shop, menuItems }: OrderPageProps) {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []); // Memoize supabase client creation if it's consistently the same instance
 
   // --- General States ---
   const [clientName, setClientName] = useState('');
@@ -88,8 +88,6 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
   const [orderPlacedInfo, setOrderPlacedInfo] = useState<{ orderId: string; clientName: string; } | null>(null);
   const [orderNotes, setOrderNotes] = useState('');
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
-
-  // Removed `selectedPaymentOption` state entirely as it's no longer needed.
 
   // Determine if the shop is currently open based on operating hours
   const isShopOpen = useMemo(() => {
@@ -137,8 +135,8 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
     const STRIPE_DOMESTIC_FIXED_FEE = 0.30; // A$0.30
     // SURCHARGE_BUFFER is removed as per decision.
 
-    let estimatedSurcharge = (totalCartPrice * STRIPE_DOMESTIC_RATE) + STRIPE_DOMESTIC_FIXED_FEE;
-    
+    const estimatedSurcharge = (totalCartPrice * STRIPE_DOMESTIC_RATE) + STRIPE_DOMESTIC_FIXED_FEE; // Changed to const
+
     return parseFloat(estimatedSurcharge.toFixed(2)); // Round to 2 decimal places for display
   }, [totalCartPrice, shop.pass_stripe_fees_to_customer]);
 
@@ -247,8 +245,8 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
     clientPhone,
     isValidAustralianPhone,
     shop, // shop.enable_online_payments, shop.id used
-    orderNotes, // orderNotes used
-    supabase
+    orderNotes // orderNotes used
+    // supabase - REMOVED from dependencies
   ]);
 
 
@@ -459,10 +457,10 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
 
             {/* Checkout Button - Opens Dialog */}
             <motion.div variants={fadeIn}>
-                <Button 
-                    type="button" 
-                    size="lg" 
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105" 
+                <Button
+                    type="button"
+                    size="lg"
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 transform hover:scale-105"
                     disabled={loading || isSubmitting || cart.length === 0}
                     onClick={() => setIsCheckoutDialogOpen(true)} // Open the new dialog
                 >
@@ -472,7 +470,7 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
           </motion.div>
         )
       }
-      
+
       {/* Checkout Dialog (NEW) */}
       <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
         <DialogContent className='sm:max-w-[425px]'>
