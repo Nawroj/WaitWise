@@ -1,11 +1,11 @@
 // src/lib/supabase/server.ts
 
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { type SupabaseClient } from '@supabase/supabase-js'; // NEW: Import SupabaseClient type
+import { type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 // Client for authenticated users in Server Components/Actions (uses cookies)
-export async function createClient(): Promise<SupabaseClient> { // Added Promise<SupabaseClient> return type
+export async function createClient(): Promise<SupabaseClient> {
   const cookieStore = cookies();
 
   return createServerClient(
@@ -13,47 +13,47 @@ export async function createClient(): Promise<SupabaseClient> { // Added Promise
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) { // This parameter 'name' IS used below in cookieStore.get(name)
+        get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: CookieOptions) { // These parameters ARE used below in cookieStore.set({ name, value, ...options })
+        set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options });
           } catch (error) {
             console.error(
               "Error setting cookie in Supabase server client:",
-              error,
+              error
             );
           }
         },
-        remove(name: string, options: CookieOptions) { // These parameters ARE used below in cookieStore.set({ name, value: "", ...options })
+        remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: "", ...options });
           } catch (error) {
             console.error(
               "Error removing cookie in Supabase server client:",
-              error,
+              error
             );
           }
         },
       },
-    },
+    }
   );
 }
 
 // Client for API Routes/Server-side operations needing elevated privileges (uses service_role key)
-export function createServiceRoleClient(): SupabaseClient { // ADDED: SupabaseClient return type
+export function createServiceRoleClient(): SupabaseClient {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    throw new Error('Missing environment variable NEXT_PUBLIC_SUPABASE_URL');
+    throw new Error("Missing environment variable NEXT_PUBLIC_SUPABASE_URL");
   }
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Missing environment variable SUPABASE_SERVICE_ROLE_KEY');
+    throw new Error("Missing environment variable SUPABASE_SERVICE_ROLE_KEY");
   }
 
   const dummyCookieStore = {
-    get: (_name: string) => undefined, // ADDED UNDERSCORE: parameter is intentionally unused
-    set: (_name: string, _value: string, _options: CookieOptions) => {}, // ADDED UNDERSCORES: parameters are intentionally unused
-    remove: (_name: string, _options: CookieOptions) => {}, // ADDED UNDERSCORES: parameters are intentionally unused
+    get: (_: string) => undefined,
+    set: (_: string, __: string, ___: CookieOptions) => {},
+    remove: (_: string, __: CookieOptions) => {},
   };
 
   return createServerClient(
