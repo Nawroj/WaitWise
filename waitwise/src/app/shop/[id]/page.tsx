@@ -10,7 +10,11 @@ import { notFound } from "next/navigation"; // For handling cases where shop is 
 
 
 // --- ShopPage Server Component ---
-export default async function ShopPage({ params }: { params: { id: string } }) { // Destructure params directly from props
+interface PageProps {
+  params: { id: string };
+}
+
+export default async function ShopPage({ params }: PageProps) {
   const { id: shopId } = params;
   const supabase = await createClient(); // Initialize server-side Supabase client
 
