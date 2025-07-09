@@ -7,6 +7,8 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Separator } from "../../../components/ui/separator";
+import { Collapsible, CollapsibleContent,
+  CollapsibleTrigger, } from "../../../components/ui/collapsible";
 import {
   Alert,
   AlertDescription,
@@ -33,7 +35,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "../../../components/ui/dialog";
-import { Clock, Timer } from "lucide-react";
+import { Clock, Timer, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { motion, easeInOut } from "framer-motion";
 
@@ -75,6 +77,8 @@ type Service = {
   name: string;
   price: number;
   duration_minutes: number;
+  category: string | null; // <--- ADDED THIS LINE
+  description: string | null;
 };
 type Barber = {
   id: string;
@@ -162,6 +166,15 @@ export default function BookingClient({
     const formattedHour = hour % 12 || 12;
     return `${formattedHour}:${minutes} ${ampm}`;
   };
+
+  const categorizedServices = useMemo(() => {
+    return items.reduce((acc, service) => {
+        const category = service.category || 'Uncategorized'; // Default to 'Uncategorized'
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(service);
+        return acc;
+    }, {} as Record<string, Service[]>);
+}, [items]);
 
   // Validate Australian phone numbers
   const isValidAustralianPhone = (phone: string) =>
@@ -558,47 +571,68 @@ export default function BookingClient({
       ) : (
         // Main booking form
         <motion.form
-          onSubmit={handleJoinQueue}
-          className="mt-8 space-y-10"
-          initial="initial"
-          animate="animate"
-          variants={staggerContainer}
-        >
-          {/* Step 1: Select Services */}
-          <motion.div className="space-y-4" variants={fadeIn}>
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">1. Select Service(s)</h2>
-              <p className="text-lg font-semibold text-primary">
-                ${totalPrice.toFixed(2)}
-              </p>
-            </div>
-            <motion.div
-              className="flex flex-wrap gap-2"
-              variants={staggerContainer}
-            >
-              {/* >>> USED 'items' HERE <<< */}
-              {items.map((service) => (
-                <motion.div
-                  key={service.id}
-                  variants={fadeIn}
-                  className="transition-transform hover:-translate-y-1"
-                >
-                  <Button
-                    type="button"
-                    variant={
-                      selectedServices.some((s) => s.id === service.id)
-                        ? "default"
-                        : "outline"
-                    }
-                    onClick={() => handleServiceSelect(service)}
-                    className="transition-colors"
-                  >
-                    {service.name} (${service.price})
-                  </Button>
-                </motion.div>
-              ))}
-            </motion.div>
+        onSubmit={handleJoinQueue}
+        className="mt-8 space-y-10"
+        initial="initial"
+        animate="animate"
+        variants={staggerContainer}
+      >
+        {/* Step 1: Select Services */}
+        <motion.div className="space-y-4" variants={fadeIn}>
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">1. Select Service(s)</h2>
+            <p className="text-lg font-semibold text-primary">
+              ${totalPrice.toFixed(2)}
+            </p>
+          </div>
+          <motion.div
+            className="flex flex-col gap-2" // Changed to flex-col for stacked collapsibles
+            variants={staggerContainer}
+          >
+            {Object.entries(categorizedServices).map(([category, servicesInCategory], index) => (
+              <Collapsible key={category} className="space-y-2" defaultOpen={index === 0}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between px-2 py-2 cursor-pointer hover:bg-muted/80 transition-colors rounded-md">
+                    <h3 className="text-lg font-bold">{category}</h3>
+                    <ChevronDown className="h-5 w-5 ui-open:rotate-180 transition-transform" />
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="flex flex-wrap gap-2 p-2">
+                    {servicesInCategory.map((service) => (
+                      <motion.div
+                        key={service.id}
+                        variants={fadeIn}
+                        className="transition-transform hover:-translate-y-1"
+                      >
+                        <Button
+                          type="button"
+                          variant={
+                            selectedServices.some((s) => s.id === service.id)
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() => handleServiceSelect(service)}
+                          // IMPORTANT: Adjusted Button styling for multiline content
+                          className="flex flex-col h-auto items-start p-3 text-left transition-colors"
+                        >
+                          <span className="font-semibold">{service.name} (${service.price})</span>
+                          {service.description && (
+                            // Display description if it exists
+                            <span className="text-xs text-muted-foreground mt-1 text-wrap">
+                              {service.description}
+                            </span>
+                          )}
+                        </Button>
+                      </motion.div>
+                    ))}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            ))}
           </motion.div>
+        </motion.div>
+
 
           {/* Step 2: Select a Staff Member */}
           <motion.div className="space-y-4" variants={fadeIn}>

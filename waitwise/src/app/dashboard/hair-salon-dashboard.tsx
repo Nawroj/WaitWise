@@ -1,3 +1,5 @@
+// app/dashboard/page.tsx
+
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -65,6 +67,7 @@ import {
   Store,
   Users,
   PauseCircle, // Added for break icon
+  ChevronDown, // Added for collapsible
 } from "lucide-react";
 import {
   Avatar,
@@ -91,6 +94,11 @@ import { motion, easeInOut } from "framer-motion";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { StripePaymentForm } from "../../components/ui/StripePaymentForm";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../../components/ui/collapsible"; // Added Collapsible
 
 // Animation Variants
 const fadeIn = {
@@ -146,6 +154,8 @@ type Service = {
   name: string;
   price: number;
   duration_minutes: number;
+  category: string | null; // ADDED
+  description: string | null; // ADDED
 };
 type Barber = {
   id: string;
@@ -211,6 +221,8 @@ export default function DashboardPage() {
   const [newServiceName, setNewServiceName] = useState("");
   const [newServicePrice, setNewServicePrice] = useState("");
   const [newServiceDuration, setNewServiceDuration] = useState("");
+  const [newServiceCategory, setNewServiceCategory] = useState(""); // ADDED
+  const [newServiceDescription, setNewServiceDescription] = useState(""); // ADDED
 
   // States for staff management
   const [newBarberName, setNewBarberName] = useState("");
@@ -264,25 +276,25 @@ export default function DashboardPage() {
   );
 
   const generateQRCode = useCallback(async () => {
-  if (!shop) return;
-  const url = `${window.location.origin}/shop/${shop.id}`;
-  try {
-    const options = {
-      errorCorrectionLevel: "H" as const,
-      type: "image/png" as const,
-      margin: 1,
-      color: {
-        dark: "#000000",
-        light: "#FFFFFF",
-      },
-    };
-    const dataUrl = await QRCode.toDataURL(url, options);
-    setQrCodeDataUrl(dataUrl);
-  } catch (err) {
-    console.error("Failed to generate QR code", err);
-    toast.error("Could not generate QR code. Please try again.");
-  }
-}, [shop]);
+    if (!shop) return;
+    const url = `${window.location.origin}/shop/${shop.id}`;
+    try {
+      const options = {
+        errorCorrectionLevel: "H" as const,
+        type: "image/png" as const,
+        margin: 1,
+        color: {
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
+      };
+      const dataUrl = await QRCode.toDataURL(url, options);
+      setQrCodeDataUrl(dataUrl);
+    } catch (err) {
+      console.error("Failed to generate QR code", err);
+      toast.error("Could not generate QR code. Please try again.");
+    }
+  }, [shop]);
 
   // Fetches shop's services and barbers
   const fetchShopData = useCallback(
@@ -292,7 +304,7 @@ export default function DashboardPage() {
         [
           supabase
             .from("services")
-            .select("*")
+            .select("*, category, description") // MODIFIED: Select new fields
             .eq("shop_id", shopId)
             .order("created_at"),
           supabase
@@ -302,7 +314,7 @@ export default function DashboardPage() {
             .order("created_at"),
         ],
       );
-      setServices(servicesData || []);
+      setServices(servicesData as Service[] || []); // Cast to Service[]
       setBarbers((barbersData as Barber[]) || []);
     },
     [supabase],
@@ -748,7 +760,7 @@ export default function DashboardPage() {
               {
                 body: {
                   entity_id: nextInQueue.id, // MODIFIED: Send generic entity_id (the queue entry ID)
-                  type: 'queue',             // MODIFIED: Specify type as 'queue'
+                  type: 'queue',              // MODIFIED: Specify type as 'queue'
                 },
               },
             );
@@ -773,13 +785,13 @@ export default function DashboardPage() {
           toast.info("Notification for this client has already been sent.");
         }
       } catch (error: unknown) {
-  console.error("Unexpected error in notification logic:", error);
-  let errorMessage = "An unexpected error occurred during notification.";
-  if (error instanceof Error) {
-    errorMessage = error.message;
-  }
-  toast.error(`An unexpected error occurred during notification: ${errorMessage}`);
-}
+        console.error("Unexpected error in notification logic:", error);
+        let errorMessage = "An unexpected error occurred.";
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        toast.error(`An unexpected error occurred during notification: ${errorMessage}`);
+      }
     }
   };
 
@@ -954,12 +966,16 @@ export default function DashboardPage() {
         name: newServiceName,
         price: parseFloat(newServicePrice),
         duration_minutes: parseInt(newServiceDuration),
+        category: newServiceCategory || null, // ADDED
+        description: newServiceDescription || null, // ADDED
         shop_id: shop.id,
       });
     if (!error) {
       setNewServiceName("");
       setNewServicePrice("");
       setNewServiceDuration("");
+      setNewServiceCategory(""); // ADDED
+      setNewServiceDescription(""); // ADDED
       toast.success("Service added!");
     } else {
       toast.error("Failed to add service.");
@@ -1138,6 +1154,16 @@ export default function DashboardPage() {
       );
     }
   };
+
+  // Group services by category for collapsible display
+  const categorizedServices = useMemo(() => {
+    return services.reduce((acc, service) => {
+      const category = service.category || 'Uncategorized';
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(service);
+      return acc;
+    }, {} as Record<string, Service[]>);
+  }, [services]);
 
   // Renders the content for different edit dialog sections
   const renderEditDialogContent = () => {
@@ -1322,34 +1348,50 @@ export default function DashboardPage() {
                 <CardContent className="pt-4">
                   {/* Table to display existing services */}
                   {services.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Service</TableHead>
-                          <TableHead>Price</TableHead>
-                          <TableHead>Mins</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {services.map((s) => (
-                          <TableRow key={s.id}>
-                            <TableCell>{s.name}</TableCell>
-                            <TableCell>${s.price}</TableCell>
-                            <TableCell>{s.duration_minutes}</TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteService(s.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <div className="space-y-4">
+                      {Object.entries(categorizedServices).map(([category, itemsInCategory], index) => (
+                        <Collapsible key={category} className="space-y-2" defaultOpen={index === 0}>
+                          <CollapsibleTrigger asChild>
+                            <div className="flex items-center justify-between px-2 py-2 cursor-pointer hover:bg-muted/80 transition-colors">
+                              <h3 className="text-lg font-bold">{category}</h3>
+                              <ChevronDown className="h-5 w-5 ui-open:rotate-180 transition-transform" />
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Service</TableHead>
+                                  <TableHead>Description</TableHead> {/* ADDED */}
+                                  <TableHead>Price</TableHead>
+                                  <TableHead>Mins</TableHead>
+                                  <TableHead></TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {itemsInCategory.map((s) => (
+                                  <TableRow key={s.id}>
+                                    <TableCell>{s.name}</TableCell>
+                                    <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate">{s.description || 'N/A'}</TableCell> {/* ADDED */}
+                                    <TableCell>${s.price}</TableCell>
+                                    <TableCell>{s.duration_minutes}</TableCell>
+                                    <TableCell className="text-right">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleDeleteService(s.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-center p-6 border-2 border-dashed rounded-lg">
                       <ListPlus className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -1366,12 +1408,30 @@ export default function DashboardPage() {
                 <CardFooter className="flex flex-wrap gap-2 items-end pt-6">
                   {/* Form to add new service */}
                   <div className="grid gap-1.5 flex-grow min-w-[120px]">
-                    <Label htmlFor="new-service-name">New Service</Label>
+                    <Label htmlFor="new-service-name">New Service Name</Label>
                     <Input
                       id="new-service-name"
-                      placeholder="Name"
+                      placeholder="e.g., Haircut"
                       value={newServiceName}
                       onChange={(e) => setNewServiceName(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-1.5 flex-grow min-w-[120px]">
+                    <Label htmlFor="new-service-category">Category (Optional)</Label> {/* ADDED */}
+                    <Input
+                      id="new-service-category"
+                      placeholder="e.g., Men's, Women's, Kids"
+                      value={newServiceCategory}
+                      onChange={(e) => setNewServiceCategory(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-1.5 w-full"> {/* Changed to full width for description */}
+                    <Label htmlFor="new-service-description">Description (Optional)</Label> {/* ADDED */}
+                    <Input
+                      id="new-service-description"
+                      placeholder="Short description of the service"
+                      value={newServiceDescription}
+                      onChange={(e) => setNewServiceDescription(e.target.value)}
                     />
                   </div>
                   <div className="grid gap-1.5 w-24">
@@ -2430,7 +2490,7 @@ export default function DashboardPage() {
                     <div className="grid gap-4 md:grid-cols-3 mb-8">
                       {/* Corrected: Wrap Card with motion.div for animations */}
                       <motion.div variants={fadeIn} whileHover="hover">
-    <Card className="h-full w-full"> {/* Card is now a child */}
+                        <Card className="h-full w-full"> {/* Card is now a child */}
                           <CardHeader>
                             <CardTitle>Total Revenue</CardTitle>
                           </CardHeader>
