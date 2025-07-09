@@ -11,7 +11,7 @@ import { Separator } from '../../../components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card' // Removed CardFooter
 import { Badge } from '../../../components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '../../../components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogFooter, DialogClose, DialogTitle } from '../../../components/ui/dialog' // Added DialogTitle
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../components/ui/collapsible'
 import { ShoppingCart, UtensilsCrossed, CheckCircle2, Trash2, ChevronDown, Info } from 'lucide-react' // Removed ChevronUp
 import { toast } from "sonner"
@@ -471,15 +471,17 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
 
       {/* Checkout Dialog (NEW) */}
       <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
-        <DialogContent className='sm:max-w-[425px]'>
+        {/* Added 'max-h-[80vh] overflow-y-auto' to DialogContent */}
+        <DialogContent className='sm:max-w-[425px] flex flex-col max-h-[90vh]'> {/* Adjusted max-h */}
           <DialogHeader>
             <DialogTitle>Confirm Your Order</DialogTitle>
             <DialogDescription>
               Please enter your details and confirm your order.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleConfirmOrder}> {/* Wrap dialog content in a form */}
-            <div className="grid gap-4 py-4">
+          {/* Added 'flex-grow overflow-y-auto' to the form's wrapper div */}
+          <form onSubmit={handleConfirmOrder} className="flex-grow flex flex-col min-h-0"> {/* Ensure form itself allows flexing */}
+            <div className="grid gap-4 py-4 overflow-y-auto pr-2"> {/* This div will scroll */}
               {/* Order Summary in Dialog */}
               <h3 className="text-lg font-semibold flex items-center gap-2">
                   Order Summary <Badge variant="secondary">${totalCartPrice.toFixed(2)}</Badge>
@@ -537,23 +539,23 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
                   </p>
               </div>
             </div>
-            <DialogFooter>
-  <DialogClose asChild>
-    <Button type="button" variant="secondary" disabled={isSubmitting || loading}>Cancel</Button>
-  </DialogClose>
-  <Button
-    type="submit"
-    disabled={
-      isSubmitting ||
-      loading ||
-      cart.length === 0 ||
-      !clientName ||
-      (clientPhone !== '' && !isValidAustralianPhone(clientPhone)) // FIXED LINE
-    }
-  >
-    {isSubmitting ? 'Confirming...' : 'Proceed to Pay'}
-  </Button>
-</DialogFooter>
+            <DialogFooter className="flex-shrink-0"> {/* Ensure footer doesn't scroll */}
+              <DialogClose asChild>
+                <Button type="button" variant="secondary" disabled={isSubmitting || loading}>Cancel</Button>
+              </DialogClose>
+              <Button
+                type="submit"
+                disabled={
+                  isSubmitting ||
+                  loading ||
+                  cart.length === 0 ||
+                  !clientName ||
+                  (clientPhone !== '' && !isValidAustralianPhone(clientPhone))
+                }
+              >
+                {isSubmitting ? 'Confirming...' : 'Proceed to Pay'}
+              </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
