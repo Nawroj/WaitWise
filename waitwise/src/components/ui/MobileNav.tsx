@@ -37,12 +37,7 @@ export function MobileNav() {
             >
               Pricing
             </Link>
-            <Link
-              href="/shops"
-              className="text-base font-medium text-left text-foreground p-3 rounded-md hover:bg-muted transition-colors"
-            >
-              Join a Queue
-            </Link>
+
             <Link
               href="/login"
               className="text-base font-medium text-left text-foreground p-3 rounded-md hover:bg-muted transition-colors"
