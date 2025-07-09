@@ -471,22 +471,22 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
 
       {/* Checkout Dialog (NEW) */}
       <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
-        {/* Added 'max-h-[80vh] overflow-y-auto' to DialogContent */}
-        <DialogContent className='sm:max-w-[425px] flex flex-col max-h-[90vh]'> {/* Adjusted max-h */}
+        <DialogContent className='sm:max-w-[425px] flex flex-col max-h-[90vh]'>
           <DialogHeader>
             <DialogTitle>Confirm Your Order</DialogTitle>
             <DialogDescription>
               Please enter your details and confirm your order.
             </DialogDescription>
           </DialogHeader>
-          {/* Added 'flex-grow overflow-y-auto' to the form's wrapper div */}
-          <form onSubmit={handleConfirmOrder} className="flex-grow flex flex-col min-h-0"> {/* Ensure form itself allows flexing */}
-            <div className="grid gap-4 py-4 overflow-y-auto pr-2"> {/* This div will scroll */}
+          <form onSubmit={handleConfirmOrder} className="flex-grow flex flex-col min-h-0">
+            {/* THIS IS THE KEY CHANGE: Remove max-h and overflow from this div */}
+            <div className="grid gap-4 py-4 overflow-y-auto pr-2">
               {/* Order Summary in Dialog */}
               <h3 className="text-lg font-semibold flex items-center gap-2">
                   Order Summary <Badge variant="secondary">${totalCartPrice.toFixed(2)}</Badge>
               </h3>
-              <div className="max-h-40 overflow-y-auto pr-2 border-b pb-2">
+              {/* REMOVE: max-h-40 and overflow-y-auto from here */}
+              <div className="pr-2 border-b pb-2"> {/* This div no longer limits its height or scrolls independently */}
                   {cart.map(item => (
                       <div key={item.id} className="flex justify-between items-center text-sm mb-1">
                           <span>{item.quantity}x {item.name}</span>
@@ -505,22 +505,20 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
                   </div>
               </div>
 
-              {/* Customer Details */}
+              {/* Customer Details - This section is fine as it is */}
               <div className="grid gap-2">
                   <Label htmlFor="client-name-dialog">Your Name</Label>
                   <Input id="client-name-dialog" placeholder="e.g., John Smith" value={clientName} onChange={e => setClientName(e.target.value)} required />
               </div>
               <div className="grid gap-2">
-                  <Label htmlFor="client-phone-dialog">Your Phone (Optional)</Label> {/* Changed label */}
+                  <Label htmlFor="client-phone-dialog">Your Phone (Optional)</Label>
                   <Input
                       id="client-phone-dialog"
                       type="tel"
                       placeholder="e.g., 0412 345 678"
                       value={clientPhone}
                       onChange={e => setClientPhone(e.target.value)}
-                      // REMOVED: required attribute
                   />
-                  {/* Phone Number Information Helper (already exists, but including for context) */}
                   <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1 italic">
                       <Info className="h-3 w-3 inline-block" />
                       We use your phone number to send SMS notifications when your order is ready.
@@ -539,7 +537,7 @@ export default function OrderPage({ shop, menuItems }: OrderPageProps) {
                   </p>
               </div>
             </div>
-            <DialogFooter className="flex-shrink-0"> {/* Ensure footer doesn't scroll */}
+            <DialogFooter className="flex-shrink-0">
               <DialogClose asChild>
                 <Button type="button" variant="secondary" disabled={isSubmitting || loading}>Cancel</Button>
               </DialogClose>
