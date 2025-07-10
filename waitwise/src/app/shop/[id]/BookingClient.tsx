@@ -695,7 +695,7 @@ export default function BookingClient({
     }
   };
 
-  const handleNextStepClick = (nextStepIndex: number, ref: React.RefObject<HTMLDivElement>) => {
+  const handleNextStepClick = (nextStepIndex: number, ref: React.RefObject<HTMLDivElement | null>) => {
     setCurrentStep(nextStepIndex);
     // Use a small timeout to ensure the new content is rendered before scrolling
     // This is important for React's rendering cycle
