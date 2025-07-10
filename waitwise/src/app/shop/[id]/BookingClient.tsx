@@ -686,7 +686,7 @@ export default function BookingClient({
     setMode(null);
   };
 
-  const scrollToNextStep = (ref: React.RefObject<HTMLDivElement>) => {
+  const scrollToNextStep = (ref: React.RefObject<HTMLDivElement | null>) => {
     if (ref.current) {
       window.scrollTo({
         top: ref.current.offsetTop - 20, // Adjust offset as needed
