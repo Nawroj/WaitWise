@@ -1,5 +1,3 @@
-// app/dashboard/page.tsx
-
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
@@ -68,6 +66,8 @@ import {
   Users,
   PauseCircle, // Added for break icon
   ChevronDown, // Added for collapsible
+  CalendarCheck, // Added for appointment check-in icon
+  XCircle, // Added for cancel appointment icon
 } from "lucide-react";
 import {
   Avatar,
@@ -98,7 +98,8 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "../../components/ui/collapsible"; // Added Collapsible
+} from "../../components/ui/collapsible";
+import { format } from "date-fns"; // Import format for date display
 
 // Animation Variants
 const fadeIn = {
@@ -134,6 +135,23 @@ type QueueEntry = {
     | { services: { id: string; name: string; price: number } | null }[]
     | null;
   notification_sent_at: string | null;
+  appointment_id: string | null; // Added for linking to appointments
+};
+type Appointment = { // NEW TYPE DEFINITION for dashboard view
+  id: string;
+  shop_id: string;
+  client_name: string;
+  client_phone: string | null;
+  barber_id: string;
+  barbers: { id: string; name: string } | null; // Nested barber data
+  start_time: string;
+  end_time: string;
+  status: "booked" | "checked_in" | "in_progress" | "completed" | "cancelled" | "no_show";
+  notes: string | null;
+  total_price: number | null;
+  service_ids: string[] | null; // Array of service UUIDs
+  // `services` is not directly nested from DB for array column, will map manually
+  created_at: string;
 };
 type Shop = {
   id: string;
@@ -154,8 +172,8 @@ type Service = {
   name: string;
   price: number;
   duration_minutes: number;
-  category: string | null; // ADDED
-  description: string | null; // ADDED
+  category: string | null;
+  description: string | null;
 };
 type Barber = {
   id: string;
@@ -175,13 +193,13 @@ type AnalyticsData = {
 type EditSection = "details" | "services" | "staff" | "qr";
 type Invoice = {
   id: string;
-  month?: string; // Made optional
+  month?: string;
   amount_due: number;
-  amount_paid?: number; // Made optional
-  currency?: string; // Made optional
+  amount_paid?: number;
+  currency?: string;
   status: string;
   created_at: string;
-  due_date?: string; // Made optional
+  due_date?: string;
   stripe_invoice_id?: string | null;
   stripe_charge_id?: string | null;
 };
@@ -194,20 +212,21 @@ export default function DashboardPage() {
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
   const [queueEntries, setQueueEntries] = useState<QueueEntry[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]); // NEW STATE FOR APPOINTMENTS
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [activeEditSection, setActiveEditSection] =
-    useState<EditSection | null>(null); // Controls which edit dialog is open
-  const [isBillingDialogOpen, setIsBillingDialogOpen] = useState(false); // Controls billing dialog visibility
+    useState<EditSection | null>(null);
+  const [isBillingDialogOpen, setIsBillingDialogOpen] = useState(false);
   const [editingQueueEntry, setEditingQueueEntry] = useState<QueueEntry | null>(
     null,
-  ); // Queue entry being edited
+  );
   const [isEditQueueEntryDialogOpen, setIsEditQueueEntryDialogOpen] =
-    useState(false); // Controls queue entry edit dialog
-  const [editedBarberId, setEditedBarberId] = useState(""); // Correctly define editedBarberId here
-  const [barberForBreak, setBarberForBreak] = useState<Barber | null>(null); // Barber for whom break is being set
-  const [breakDuration, setBreakDuration] = useState("15"); // Duration for barber break
-  const [isBreakDialogOpen, setIsBreakDialogOpen] = useState(false); // Controls barber break dialog
+    useState(false);
+  const [editedBarberId, setEditedBarberId] = useState("");
+  const [barberForBreak, setBarberForBreak] = useState<Barber | null>(null);
+  const [breakDuration, setBreakDuration] = useState("15");
+  const [isBreakDialogOpen, setIsBreakDialogOpen] = useState(false);
 
   // States for shop details editing
   const [editedShopName, setEditedShopName] = useState("");
@@ -221,8 +240,8 @@ export default function DashboardPage() {
   const [newServiceName, setNewServiceName] = useState("");
   const [newServicePrice, setNewServicePrice] = useState("");
   const [newServiceDuration, setNewServiceDuration] = useState("");
-  const [newServiceCategory, setNewServiceCategory] = useState(""); // ADDED
-  const [newServiceDescription, setNewServiceDescription] = useState(""); // ADDED
+  const [newServiceCategory, setNewServiceCategory] = useState("");
+  const [newServiceDescription, setNewServiceDescription] = useState("");
 
   // States for staff management
   const [newBarberName, setNewBarberName] = useState("");
@@ -230,47 +249,62 @@ export default function DashboardPage() {
     null,
   );
 
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null); // Holds the generated QR code Data URL
-  const [totalEventCount, setTotalEventCount] = useState(0); // Total billable events for trial
-  const [monthlyBillableEventCount, setMonthlyBillableEventCount] = useState(0); // Billable events for active subscription
-  const [showAllCompleted, setShowAllCompleted] = useState(false); // Toggle to show all completed queue entries
-  const [showAllNoShows, setShowAllNoShows] = useState(false); // Toggle to show all no-show queue entries
-  const [isSmsPaused, setIsSmsPaused] = useState(true); // Toggle for SMS notifications
-  const [isUpgrading, setIsUpgrading] = useState(false); // State for upgrade flow in billing dialog
-  const [billingEmail, setBillingEmail] = useState(""); // Email for billing
-  const [isEmailPromptVisible, setIsEmailPromptVisible] = useState(false); // Prompt for email if not found
-  const [failedInvoice, setFailedInvoice] = useState<Invoice | null>(null); // Details of a failed invoice
-  const [analyticsRange, setAnalyticsRange] = useState("today"); // Time range for analytics data
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [totalEventCount, setTotalEventCount] = useState(0);
+  const [monthlyBillableEventCount, setMonthlyBillableEventCount] = useState(0);
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
+  const [showAllNoShows, setShowAllNoShows] = useState(false);
+  const [isSmsPaused, setIsSmsPaused] = useState(true);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [billingEmail, setBillingEmail] = useState("");
+  const [isEmailPromptVisible, setIsEmailPromptVisible] = useState(false);
+  const [failedInvoice, setFailedInvoice] = useState<Invoice | null>(null);
+  const [analyticsRange, setAnalyticsRange] = useState("today");
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
     null,
-  ); // Fetched analytics data
-  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true); // Loading state for analytics
+  );
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
   const stripePromise = loadStripe(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
   );
 
-  // Fetches current day's queue entries for the shop
-  const fetchQueueData = useCallback(
+  // Fetches current day's queue entries and appointments for the shop
+  const fetchData = useCallback( // Renamed from fetchQueueData to fetchData
     async (shopId: string) => {
       if (!shopId) return;
 
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Start of today
 
-      const { data, error } = await supabase
-        .from("queue_entries")
-        .select(
-          `*, barbers ( id, name ), notification_sent_at, queue_entry_services ( services ( id, name, price ) )`,
-        )
-        .eq("shop_id", shopId)
-        .gte("created_at", today.toISOString()) // Filter for today's entries
-        .order("queue_position");
+      const [{ data: queueData, error: queueError }, { data: appointmentsData, error: appointmentsError }] = await Promise.all([
+        supabase
+          .from("queue_entries")
+          .select(
+            `*, barbers ( id, name ), notification_sent_at, queue_entry_services ( services ( id, name, price ) )`,
+          )
+          .eq("shop_id", shopId)
+          .gte("created_at", today.toISOString())
+          .order("queue_position"),
 
-      if (error) {
-        console.error("Error fetching queue:", error);
-        return;
+        supabase
+          .from("appointments")
+          .select(`*, barbers ( id, name )`) // Fetch nested barber, but NOT services (handled manually)
+          .eq("shop_id", shopId)
+          .gte("start_time", today.toISOString()) // Only future/current appointments
+          .order("start_time", { ascending: true })
+      ]);
+
+      if (queueError) {
+        console.error("Error fetching queue:", queueError);
+      } else {
+        setQueueEntries(queueData as QueueEntry[]);
       }
-      setQueueEntries(data as QueueEntry[]);
+
+      if (appointmentsError) {
+        console.error("Error fetching appointments:", appointmentsError); // Log the actual error
+      } else {
+        setAppointments(appointmentsData as Appointment[]);
+      }
     },
     [supabase],
   );
@@ -304,7 +338,7 @@ export default function DashboardPage() {
         [
           supabase
             .from("services")
-            .select("*, category, description") // MODIFIED: Select new fields
+            .select("*, category, description")
             .eq("shop_id", shopId)
             .order("created_at"),
           supabase
@@ -314,20 +348,20 @@ export default function DashboardPage() {
             .order("created_at"),
         ],
       );
-      setServices(servicesData as Service[] || []); // Cast to Service[]
+      setServices(servicesData as Service[] || []);
       setBarbers((barbersData as Barber[]) || []);
     },
     [supabase],
   );
 
-  // Initial data fetch on component mount: user, shop, queue, services, barbers
+  // Initial data fetch on component mount: user, shop, queue, services, barbers, appointments
   useEffect(() => {
     async function fetchUserAndShop() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login"); // Redirect to login if no user session
+        router.push("/login");
         return;
       }
       const { data: shopData } = await supabase
@@ -337,24 +371,23 @@ export default function DashboardPage() {
         .single();
       if (shopData) {
         setShop(shopData);
-        // Initialize editable shop details with fetched data
         setEditedShopName(shopData.name);
         setEditedShopAddress(shopData.address);
         setEditedOpeningTime(shopData.opening_time || "09:00");
         setEditedClosingTime(shopData.closing_time || "17:00");
-        fetchQueueData(shopData.id);
+        fetchData(shopData.id); // Call fetchData to get queue and appointments
         fetchShopData(shopData.id);
       }
       setLoading(false);
     }
     fetchUserAndShop();
-  }, [supabase, router, fetchQueueData, fetchShopData]);
+  }, [supabase, router, fetchData, fetchShopData]); // Added fetchData to dependencies
 
   // Effect to update logo preview when shop details edit dialog opens
   useEffect(() => {
     if (activeEditSection === "details" && shop) {
       setLogoPreviewUrl(shop.logo_url || null);
-      setNewShopLogoFile(null); // Reset file input
+      setNewShopLogoFile(null);
     }
   }, [activeEditSection, shop]);
 
@@ -369,7 +402,6 @@ export default function DashboardPage() {
         1,
       ).toISOString();
 
-      // Fetch total events
       const { count: totalCount, error: totalError } = await supabase
         .from("billable_events")
         .select("*", { count: "exact", head: true })
@@ -381,7 +413,6 @@ export default function DashboardPage() {
         setTotalEventCount(totalCount || 0);
       }
 
-      // Fetch monthly billable events
       const { count: monthlyCount, error: monthlyError } = await supabase
         .from("billable_events")
         .select("*", { count: "exact", head: true })
@@ -405,12 +436,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (shop?.subscription_status === "past_due") {
       const fetchFailedInvoice = async () => {
-        console.log("Attempting to fetch failed invoice for shop:", shop.id); // Added log
+        console.log("Attempting to fetch failed invoice for shop:", shop.id);
         const { data, error } = await supabase
           .from("invoices")
           .select(
             "id, amount_due, created_at, status, stripe_charge_id, month, amount_paid, currency, due_date",
-          ) // Ensure amount_due is here and all other necessary fields are selected
+          )
           .eq("shop_id", shop.id)
           .eq("status", "failed")
           .order("created_at", { ascending: false })
@@ -418,9 +449,9 @@ export default function DashboardPage() {
           .single();
 
         if (error) {
-          console.error("Error fetching failed invoice:", error); // Log specific error
+          console.error("Error fetching failed invoice:", error);
         } else {
-          console.log("Fetched failed invoice data:", data); // See what data is returned
+          console.log("Fetched failed invoice data:", data);
           setFailedInvoice(data);
         }
       };
@@ -445,11 +476,11 @@ export default function DashboardPage() {
           startDate = new Date(new Date().setMonth(today.getMonth() - 1));
           break;
         case "all_time":
-          startDate = new Date(0); // Epoch for all time
+          startDate = new Date(0);
           break;
         case "today":
         default:
-          startDate = new Date(new Date().setHours(0, 0, 0, 0)); // Start of today
+          startDate = new Date(new Date().setHours(0, 0, 0, 0));
           break;
       }
 
@@ -477,7 +508,7 @@ export default function DashboardPage() {
     fetchAnalytics();
   }, [shop, analyticsRange, supabase]);
 
-  // Real-time subscriptions for queue, barbers, and services updates
+  // Real-time subscriptions for queue, barbers, services, AND appointments updates
   useEffect(() => {
     if (!shop) return;
     const queueChannel = supabase
@@ -485,12 +516,25 @@ export default function DashboardPage() {
       .on(
         "postgres_changes",
         {
-          event: "*", // Listen to all changes (INSERT, UPDATE, DELETE)
+          event: "*",
           schema: "public",
           table: "queue_entries",
-          filter: `shop_id=eq.${shop.id}`, // Filter for the current shop
+          filter: `shop_id=eq.${shop.id}`,
         },
-        () => fetchQueueData(shop.id),
+        () => fetchData(shop.id), // Call fetchData on queue changes
+      )
+      .subscribe();
+    const appointmentsChannel = supabase // NEW: Appointments channel
+      .channel(`appointments_for_${shop.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+          filter: `shop_id=eq.${shop.id}`,
+        },
+        () => fetchData(shop.id), // Call fetchData on appointment changes
       )
       .subscribe();
     const barbersChannel = supabase
@@ -498,10 +542,10 @@ export default function DashboardPage() {
       .on(
         "postgres_changes",
         {
-          event: "*", // Listen to all changes (INSERT, UPDATE, DELETE)
+          event: "*",
           schema: "public",
           table: "barbers",
-          filter: `shop_id=eq.${shop.id}`, // Filter for the current shop
+          filter: `shop_id=eq.${shop.id}`,
         },
         () => fetchShopData(shop.id),
       )
@@ -511,21 +555,22 @@ export default function DashboardPage() {
       .on(
         "postgres_changes",
         {
-          event: "*", // Listen to all changes (INSERT, UPDATE, DELETE)
+          event: "*",
           schema: "public",
           table: "services",
-          filter: `shop_id=eq.${shop.id}`, // Filter for the current shop
+          filter: `shop_id=eq.${shop.id}`,
         },
         () => fetchShopData(shop.id),
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(queueChannel); // Clean up subscription on unmount
-      supabase.removeChannel(barbersChannel); // Clean up subscription on unmount
-      supabase.removeChannel(servicesChannel); // Clean up subscription on unmount
+      supabase.removeChannel(queueChannel);
+      supabase.removeChannel(appointmentsChannel); // Clean up appointments channel
+      supabase.removeChannel(barbersChannel);
+      supabase.removeChannel(servicesChannel);
     };
-  }, [shop, supabase, fetchQueueData, fetchShopData]); // Dependencies for useEffect
+  }, [shop, supabase, fetchData, fetchShopData]); // Added fetchData to dependencies
 
   // Auto-generate QR code when the QR section is activated if not already generated
   useEffect(() => {
@@ -564,6 +609,33 @@ export default function DashboardPage() {
     () => (showAllNoShows ? fullNoShowList : fullNoShowList.slice(0, 5)),
     [fullNoShowList, showAllNoShows],
   );
+
+  // Memoized list of upcoming appointments (not checked-in, not cancelled/completed/no_show)
+  const upcomingAppointments = useMemo(() => {
+    return appointments
+      .filter(
+        (appt) =>
+          appt.status === "booked" && new Date(appt.start_time) >= new Date(),
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+      );
+  }, [appointments]);
+
+  // Helper function to get service names from service_ids (for appointments display)
+  const getServiceNamesForAppointment = useCallback((appointment: Appointment) => {
+    if (!appointment.service_ids || appointment.service_ids.length === 0) {
+        return 'N/A';
+    }
+    const names = appointment.service_ids.map(serviceId => {
+        const service = services.find(s => s.id === serviceId);
+        return service ? service.name : null;
+    }).filter(Boolean); // Filter out any nulls if a service ID wasn't found
+
+    return names.length > 0 ? names.join(', ') : 'N/A';
+}, [services]); // Dependency on the 'services' state
+
 
   // Memoized color map for barbers in charts
   const barberColorMap = useMemo(() => {
@@ -609,7 +681,7 @@ export default function DashboardPage() {
   const handleStartBreak = async () => {
     if (!barberForBreak || !breakDuration) return;
 
-    const breakEndTime = new Date(Date.now() + parseInt(breakDuration) * 60000); // Calculate break end time
+    const breakEndTime = new Date(Date.now() + parseInt(breakDuration) * 60000);
 
     const { error } = await supabase
       .from("barbers")
@@ -646,11 +718,11 @@ export default function DashboardPage() {
     } = await supabase.auth.getUser();
     if (user && user.email) {
       setBillingEmail(user.email);
-      setIsEmailPromptVisible(false); // Hide email prompt if email exists
+      setIsEmailPromptVisible(false);
     } else {
-      setIsEmailPromptVisible(true); // Show email prompt if no email
+      setIsEmailPromptVisible(true);
     }
-    setIsUpgrading(true); // Show upgrade form
+    setIsUpgrading(true);
   };
 
   // Handles submission of billing email
@@ -660,7 +732,7 @@ export default function DashboardPage() {
       toast.error("Please enter a valid email address.");
       return;
     }
-    setIsEmailPromptVisible(false); // Proceed to payment form
+    setIsEmailPromptVisible(false);
   };
 
   // Re-queues a client from 'no_show' status
@@ -671,7 +743,6 @@ export default function DashboardPage() {
       );
       return;
     }
-    // Find the current first position in the queue for the barber
     const { data: waitingEntries, error: fetchError } = await supabase
       .from("queue_entries")
       .select("queue_position")
@@ -685,7 +756,6 @@ export default function DashboardPage() {
       toast.error("Could not retrieve the current queue. Please try again.");
       return;
     }
-    // Set new position to be just before the current first client, or 1 if empty
     const newPosition =
       waitingEntries && waitingEntries.length > 0
         ? waitingEntries[0].queue_position - 1
@@ -707,7 +777,6 @@ export default function DashboardPage() {
     id: string,
     newStatus: QueueEntry["status"],
   ) => {
-    // Create a billable event if status is 'done'
     if (newStatus === "done" && shop) {
       const { error: billableError } = await supabase
         .from("billable_events")
@@ -733,34 +802,45 @@ export default function DashboardPage() {
       return;
     }
 
-    // Logic to notify the next customer when a client starts being served
-    if (newStatus === "in_progress" && barberId && shop) { // Ensure shop is also defined for shop.id
+    // If an appointment was linked to this queue entry and it's marked done/no_show, update appointment status too
+    if (newStatus === "done" || newStatus === "no_show") {
+      if (currentEntry?.appointment_id) {
+        const { error: apptUpdateError } = await supabase
+          .from("appointments")
+          .update({ status: newStatus === "done" ? "completed" : "no_show" })
+          .eq("id", currentEntry.appointment_id);
+        if (apptUpdateError) {
+          console.error(`Error updating linked appointment status to ${newStatus}:`, apptUpdateError);
+          toast.warning("Could not update linked appointment status.");
+        }
+      }
+    }
+
+
+    if (newStatus === "in_progress" && barberId && shop) {
       try {
-        // Fetch the current first in queue to get their latest data including notification_sent_at
         const { data: nextInQueue, error: nextError } = await supabase
           .from("queue_entries")
-          .select("id, notification_sent_at") // Ensure notification_sent_at is selected
+          .select("id, notification_sent_at")
           .eq("barber_id", barberId)
           .eq("status", "waiting")
-          .order("queue_position", { ascending: true }) // Get the actual first in queue
+          .order("queue_position", { ascending: true })
           .limit(1)
           .single();
 
-        if (nextError && nextError.code !== "PGRST116") { // PGRST116 means no rows found
+        if (nextError && nextError.code !== "PGRST116") {
           console.error("Error fetching next in queue for notification:", nextError);
-          // Do not throw, just log. Allow status update to proceed.
         }
 
-        // Only send if there's a next client AND notification hasn't been sent yet
         if (nextInQueue && !nextInQueue.notification_sent_at) {
-          if (!isSmsPaused) { // Check if SMS sending is enabled via dashboard toggle
+          if (!isSmsPaused) {
             console.log(`Live SMS Enabled: Found user ${nextInQueue.id} at position 1. Sending notification...`);
             const { data: invokeData, error: invokeError } = await supabase.functions.invoke(
               "notify-customer",
               {
                 body: {
-                  entity_id: nextInQueue.id, // MODIFIED: Send generic entity_id (the queue entry ID)
-                  type: 'queue',              // MODIFIED: Specify type as 'queue'
+                  entity_id: nextInQueue.id,
+                  type: 'queue',
                 },
               },
             );
@@ -769,7 +849,6 @@ export default function DashboardPage() {
               toast.error(`Failed to send SMS notification: ${invokeError.message}`);
               console.error("SMS notification invoke error:", invokeError);
             } else {
-              // The Edge Function returns a message indicating success or skip (if phone missing/invalid)
               if (invokeData?.message?.includes("skipped")) {
                 toast.info(`SMS skipped for client ${nextInQueue.id}: ${invokeData.message}`);
               } else {
@@ -795,6 +874,79 @@ export default function DashboardPage() {
     }
   };
 
+  // NEW: Handle checking in an appointment
+  const handleCheckInAppointment = async (appointment: Appointment) => {
+    if (!shop) return;
+
+    // Check if the barber already has someone in progress
+    const barberHasInProgress = queueEntries.some(
+      (entry) => entry.barber_id === appointment.barber_id && entry.status === "in_progress"
+    );
+
+    if (barberHasInProgress) {
+        toast.info(`${appointment.barbers?.name || 'This staff member'} is currently busy. Adding ${appointment.client_name} to the queue.`);
+    }
+
+    // 1. Update appointment status to 'checked_in'
+    const { error: apptUpdateError } = await supabase
+      .from("appointments")
+      .update({ status: "checked_in" })
+      .eq("id", appointment.id);
+
+    if (apptUpdateError) {
+      toast.error(`Failed to check in appointment: ${apptUpdateError.message}`);
+      return;
+    }
+
+    // 2. Create a new queue entry linked to this appointment
+    // This RPC function will handle placing them in the correct position
+    const { data: newQueueEntry, error: queueEntryError } = await supabase.rpc(
+      "create_queue_entry_with_services", // Reuse existing RPC
+      {
+        p_shop_id: shop.id,
+        p_barber_id: appointment.barber_id,
+        p_client_id: null, // Assuming client_id might not be strictly needed by RPC, or fetch it if crucial
+        p_client_name: appointment.client_name,
+        p_client_phone: appointment.client_phone,
+        p_service_ids: appointment.service_ids || [], // Pass service_ids from appointment
+        p_appointment_id: appointment.id, // Link to the appointment
+      },
+    );
+
+    if (queueEntryError) {
+      console.error("Error creating queue entry for check-in:", queueEntryError);
+      toast.error("Appointment checked in, but failed to add to queue. Please add manually.");
+      // Optionally revert appointment status if queue entry creation is critical
+      // await supabase.from("appointments").update({ status: "booked" }).eq("id", appointment.id);
+      return;
+    }
+
+    toast.success(`${appointment.client_name} checked in! Now in queue.`);
+    // Optionally trigger notification to next client if barber is now free
+    if (!barberHasInProgress) {
+         handleUpdateStatus(newQueueEntry.id, "in_progress"); // Directly start if staff is free
+    }
+  };
+
+  // NEW: Handle cancelling an appointment
+  const handleCancelAppointment = async (appointmentId: string) => {
+    if (!confirm("Are you sure you want to cancel this appointment? This cannot be undone.")) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", appointmentId);
+
+    if (error) {
+      toast.error(`Failed to cancel appointment: ${error.message}`);
+    } else {
+      toast.success("Appointment cancelled successfully.");
+    }
+  };
+
+
   // Logs out the current user
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -817,7 +969,7 @@ export default function DashboardPage() {
   const handleOpenEditDialog = (entry: QueueEntry) => {
     if (entry.barbers) {
       setEditingQueueEntry(entry);
-      setEditedBarberId(entry.barbers.id); // Pre-select current barber
+      setEditedBarberId(entry.barbers.id);
       setIsEditQueueEntryDialogOpen(true);
     } else {
       toast.error("This entry has no staff member assigned to edit.");
@@ -852,7 +1004,6 @@ export default function DashboardPage() {
       const fileExt = file.name.split(".").pop();
       const filePath = `${shop.id}/logo/logo.${fileExt}`;
 
-      // Upload new logo or update existing one
       const { error: uploadError } = await supabase.storage
         .from("shop-logos")
         .upload(filePath, file, { upsert: true });
@@ -866,11 +1017,9 @@ export default function DashboardPage() {
       const { data } = supabase.storage
         .from("shop-logos")
         .getPublicUrl(filePath);
-      // Add a timestamp to bust browser cache for the image
       logoUrlToUpdate = `${data.publicUrl}?t=${new Date().getTime()}`;
     }
 
-    // Update shop details in the database
     const { data: updatedShop, error } = await supabase
       .from("shops")
       .update({
@@ -913,20 +1062,17 @@ export default function DashboardPage() {
     toast.loading("Deleting logo...");
 
     try {
-      // Extract the file path from the full URL to delete from storage
       const logoPath = shop.logo_url.split("/shop-logos/")[1].split("?")[0];
       const { error: storageError } = await supabase.storage
         .from("shop-logos")
         .remove([logoPath]);
 
       if (storageError) {
-        // If the file doesn't exist in storage, we can ignore the error and still update the DB
         if (storageError.message !== "The resource was not found") {
           throw storageError;
         }
       }
 
-      // Set the logo_url in the database to null
       const { data: updatedShop, error: dbError } = await supabase
         .from("shops")
         .update({ logo_url: null })
@@ -936,7 +1082,6 @@ export default function DashboardPage() {
 
       if (dbError) throw dbError;
 
-      // Update the local state to reflect the change and close the dialog
       setShop(updatedShop);
       setLogoPreviewUrl(null);
       setActiveEditSection(null);
@@ -944,12 +1089,10 @@ export default function DashboardPage() {
       toast.dismiss();
       toast.success("Logo deleted successfully!");
     } catch (error: unknown) {
-      // 'error' is now 'unknown'
       toast.dismiss();
-      let errorMessage = "An unexpected error occurred."; // Default message
+      let errorMessage = "An unexpected error occurred.";
       if (error instanceof Error) {
-        // Type guard: check if 'error' is an instance of 'Error'
-        errorMessage = error.message; // Now it's safe to access .message
+        errorMessage = error.message;
       }
       toast.error(`Failed to delete logo: ${errorMessage}`);
       console.error("Delete logo error:", error);
@@ -966,16 +1109,16 @@ export default function DashboardPage() {
         name: newServiceName,
         price: parseFloat(newServicePrice),
         duration_minutes: parseInt(newServiceDuration),
-        category: newServiceCategory || null, // ADDED
-        description: newServiceDescription || null, // ADDED
+        category: newServiceCategory || null,
+        description: newServiceDescription || null,
         shop_id: shop.id,
       });
     if (!error) {
       setNewServiceName("");
       setNewServicePrice("");
       setNewServiceDuration("");
-      setNewServiceCategory(""); // ADDED
-      setNewServiceDescription(""); // ADDED
+      setNewServiceCategory("");
+      setNewServiceDescription("");
       toast.success("Service added!");
     } else {
       toast.error("Failed to add service.");
@@ -1004,19 +1147,16 @@ export default function DashboardPage() {
   const handleRetryPayment = async () => {
     if (!shop || !failedInvoice) return;
 
-    // Initial check: if no Stripe payment method is associated with the shop
-    // This is a simplified check. A more robust system would rely on webhooks
-    // to keep the payment_method_id up-to-date or check Stripe directly.
     if (shop.stripe_payment_method_id === null) {
       toast.error("No payment method found on file. Please add or update it.", {
         action: {
           label: "Update Method",
           onClick: () => {
             setIsBillingDialogOpen(true);
-            setIsUpgrading(true); // Open the billing dialog to the payment method section
+            setIsUpgrading(true);
           },
         },
-        id: "no-payment-method", // Unique ID to dismiss this specific toast
+        id: "no-payment-method",
       });
       return;
     }
@@ -1024,7 +1164,6 @@ export default function DashboardPage() {
     toast.loading("Retrying payment...", { id: "retry-payment-toast" });
 
     try {
-      // Call the Supabase Edge Function
       const { error: invokeError } = await supabase.functions.invoke(
         "retry-payment",
         {
@@ -1040,7 +1179,6 @@ export default function DashboardPage() {
           invokeError.message,
         );
 
-        // Parse specific error messages from the Edge Function
         let userMessage =
           "Failed to process payment. Please try again or update your payment method.";
         let actionLabel = "Update Method";
@@ -1049,11 +1187,8 @@ export default function DashboardPage() {
           setIsUpgrading(true);
         };
 
-        // The Edge Function returns a JSON with an 'error' field
-        const parsedError = invokeError.message; // Assuming invokeError.message holds the JSON string or relevant error
+        const parsedError = invokeError.message;
 
-        // You might need more sophisticated parsing here if invokeError.message
-        // is not always a clean string. For now, we'll check for keywords.
         if (parsedError.includes("Payment declined")) {
           userMessage = "Payment declined. Please update your payment method.";
         } else if (parsedError.includes("No payment method on file")) {
@@ -1061,7 +1196,7 @@ export default function DashboardPage() {
         } else if (parsedError.includes("already paid")) {
           userMessage =
             "Invoice was already paid. Your account should be active.";
-          actionLabel = "Close"; // No need to update method
+          actionLabel = "Close";
           actionOnClick = () => setIsBillingDialogOpen(false);
         } else if (parsedError.includes("Cannot retry payment")) {
           userMessage =
@@ -1076,9 +1211,7 @@ export default function DashboardPage() {
           },
         });
       } else {
-        // Successful payment
         toast.success("Payment successful! Your account is now active.");
-        // Refresh shop data to update subscription status and clear failed invoice
         const { data: updatedShop, error: shopRefreshError } = await supabase
           .from("shops")
           .select("*")
@@ -1094,9 +1227,8 @@ export default function DashboardPage() {
           );
         } else if (updatedShop) {
           setShop(updatedShop);
-          setFailedInvoice(null); // Clear failed invoice info
         }
-        setIsBillingDialogOpen(false); // Close the billing dialog on success
+        setIsBillingDialogOpen(false);
       }
     } catch (error: unknown) {
       toast.dismiss("retry-payment-toast");
@@ -1112,7 +1244,7 @@ export default function DashboardPage() {
     if (newBarberAvatarFile) {
       const file = newBarberAvatarFile;
       const fileExt = file.name.split(".").pop();
-      const filePath = `${shop.id}/${Date.now()}.${fileExt}`; // Unique path for each avatar
+      const filePath = `${shop.id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
@@ -1130,7 +1262,6 @@ export default function DashboardPage() {
     if (!error) {
       setNewBarberName("");
       setNewBarberAvatarFile(null);
-      // Clear the file input visually
       const fileInput = document.getElementById(
         "new-barber-avatar",
       ) as HTMLInputElement;
@@ -1217,10 +1348,10 @@ export default function DashboardPage() {
                           const file = e.target.files?.[0];
                           if (file) {
                             setNewShopLogoFile(file);
-                            setLogoPreviewUrl(URL.createObjectURL(file)); // Create preview URL
+                            setLogoPreviewUrl(URL.createObjectURL(file));
                           } else {
                             setNewShopLogoFile(null);
-                            setLogoPreviewUrl(shop?.logo_url || null); // Revert to existing logo if file cleared
+                            setLogoPreviewUrl(shop?.logo_url || null);
                           }
                         }}
                       />
@@ -1362,7 +1493,7 @@ export default function DashboardPage() {
                               <TableHeader>
                                 <TableRow>
                                   <TableHead>Service</TableHead>
-                                  <TableHead>Description</TableHead> {/* ADDED */}
+                                  <TableHead>Description</TableHead>
                                   <TableHead>Price</TableHead>
                                   <TableHead>Mins</TableHead>
                                   <TableHead></TableHead>
@@ -1372,7 +1503,7 @@ export default function DashboardPage() {
                                 {itemsInCategory.map((s) => (
                                   <TableRow key={s.id}>
                                     <TableCell>{s.name}</TableCell>
-                                    <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate">{s.description || 'N/A'}</TableCell> {/* ADDED */}
+                                    <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate">{s.description || 'N/A'}</TableCell>
                                     <TableCell>${s.price}</TableCell>
                                     <TableCell>{s.duration_minutes}</TableCell>
                                     <TableCell className="text-right">
@@ -1417,7 +1548,7 @@ export default function DashboardPage() {
                     />
                   </div>
                   <div className="grid gap-1.5 flex-grow min-w-[120px]">
-                    <Label htmlFor="new-service-category">Category (Optional)</Label> {/* ADDED */}
+                    <Label htmlFor="new-service-category">Category (Optional)</Label>
                     <Input
                       id="new-service-category"
                       placeholder="e.g., Men's, Women's, Kids"
@@ -1425,8 +1556,8 @@ export default function DashboardPage() {
                       onChange={(e) => setNewServiceCategory(e.target.value)}
                     />
                   </div>
-                  <div className="grid gap-1.5 w-full"> {/* Changed to full width for description */}
-                    <Label htmlFor="new-service-description">Description (Optional)</Label> {/* ADDED */}
+                  <div className="grid gap-1.5 w-full">
+                    <Label htmlFor="new-service-description">Description (Optional)</Label>
                     <Input
                       id="new-service-description"
                       placeholder="Short description of the service"
@@ -1518,13 +1649,13 @@ export default function DashboardPage() {
                                 checked={b.is_on_break}
                                 onCheckedChange={(isChecked) => {
                                   if (isChecked) {
-                                    setBarberForBreak(b); // Set barber for break dialog
+                                    setBarberForBreak(b);
                                     setIsBreakDialogOpen(true);
                                   } else {
                                     handleEndBreak(b.id);
                                   }
                                 }}
-                                disabled={!b.is_working_today} // Can only go on break if working
+                                disabled={!b.is_working_today}
                                 aria-label={`Toggle break status for ${b.name}`}
                               />
                             </TableCell>
@@ -1647,7 +1778,7 @@ export default function DashboardPage() {
                       alt={`${shop.name} Logo`}
                       width={144}
                       height={36}
-                      className="object-contain dark:invert"
+                      className="object-contain"
                       priority
                     />
                   </div>
@@ -1841,7 +1972,6 @@ export default function DashboardPage() {
         <Dialog
           open={isBillingDialogOpen}
           onOpenChange={(isOpen) => {
-            // Reset states when billing dialog closes
             if (!isOpen) {
               setIsUpgrading(false);
               setIsEmailPromptVisible(false);
@@ -1917,11 +2047,9 @@ export default function DashboardPage() {
                             <StripePaymentForm
                               billingEmail={billingEmail}
                               onSuccess={async () => {
-                                // Proper onSuccess implementation for trial upgrade
                                 toast.success(
                                   "Upgrade successful! Your payment method has been saved.",
                                 );
-                                // Crucially, refetch the shop data to update subscription_status
                                 const {
                                   data: updatedShop,
                                   error: shopRefreshError,
@@ -1941,7 +2069,7 @@ export default function DashboardPage() {
                                 } else if (updatedShop) {
                                   setShop(updatedShop);
                                 }
-                                setIsBillingDialogOpen(false); // Close the dialog
+                                setIsBillingDialogOpen(false);
                               }}
                               onFailure={(errorMsg) => {
                                 toast.error(errorMsg);
@@ -1998,9 +2126,7 @@ export default function DashboardPage() {
                     variant="outline"
                     className="w-full hover:text-primary hover:border-primary"
                     onClick={async () => {
-                      // Make this async to fetch email
                       if (!isUpgrading) {
-                        // Only fetch email if opening the form
                         const {
                           data: { user },
                         } = await supabase.auth.getUser();
@@ -2009,7 +2135,7 @@ export default function DashboardPage() {
                           setIsEmailPromptVisible(false);
                         } else {
                           setIsEmailPromptVisible(true);
-                          setBillingEmail(""); // Clear if no email found
+                          setBillingEmail("");
                         }
                       }
                       setIsUpgrading(!isUpgrading);
@@ -2024,11 +2150,9 @@ export default function DashboardPage() {
                         <StripePaymentForm
                           billingEmail={billingEmail}
                           onSuccess={async () => {
-                            // Proper onSuccess implementation for trial upgrade
                             toast.success(
                               "Upgrade successful! Your payment method has been saved.",
                             );
-                            // Crucially, refetch the shop data to update subscription_status
                             const {
                               data: updatedShop,
                               error: shopRefreshError,
@@ -2046,9 +2170,9 @@ export default function DashboardPage() {
                                 "Account updated, but failed to refresh shop data.",
                               );
                             } else if (updatedShop) {
-                              setShop(updatedShop);
+                                                              setShop(updatedShop);
                             }
-                            setIsBillingDialogOpen(false); // Close the dialog
+                            setIsBillingDialogOpen(false);
                           }}
                           onFailure={(errorMsg) => {
                             toast.error(errorMsg);
@@ -2091,7 +2215,7 @@ export default function DashboardPage() {
             <Separator className="my-8 bg-border/50" />
           </motion.div>
 
-          {/* Setup Guide or Live Queue */}
+          {/* Setup Guide or Live Queue/Appointments */}
           {loading === false && barbers.length === 0 ? (
             // Display setup guide if no barbers are added yet
             <motion.div variants={fadeIn}>
@@ -2102,8 +2226,8 @@ export default function DashboardPage() {
                     Welcome! Let&apos;s Get You Set Up.
                   </CardTitle>
                   <CardDescription>
-                    Your live queue view will appear here once you&apos;ve added
-                    your staff members.
+                    Your live queue and appointment views will appear here once
+                    you&apos;ve added your staff members.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -2123,12 +2247,12 @@ export default function DashboardPage() {
                       {
                         title: "Add Services & Staff",
                         description:
-                          "In the dialog, add the services you offer and the staff members on your team. Each staff member will get their own dedicated queue.",
+                          "In the dialog, add the services you offer and the staff members on your team. Each staff member will get their own dedicated queue and be available for appointments.",
                       },
                       {
                         title: "Share Your QR Code",
                         description:
-                          'Generate your shop\'s unique QR code from the "Edit Shop" panel and share it with your customers so they can join the queue!',
+                          'Generate your shop\'s unique QR code from the "Edit Shop" panel and share it with your customers so they can join the queue or book an appointment!',
                       },
                     ].map((step, i) => (
                       <motion.div
@@ -2152,14 +2276,74 @@ export default function DashboardPage() {
               </Card>
             </motion.div>
           ) : (
-            // Display live queue and analytics if barbers exist
+            // Display live queue and appointments if barbers exist
             <>
+              {/* Upcoming Appointments Section */}
+              <motion.div variants={fadeIn} className="mt-8">
+                <h2 className="text-2xl font-bold tracking-tight mb-4">
+                  Upcoming Appointments
+                </h2>
+                <Card className="bg-card border-border">
+                  <CardContent className="pt-6">
+                    {upcomingAppointments.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Time</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Staff</TableHead>
+                            <TableHead>Services</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {upcomingAppointments.map((appt) => (
+                            <TableRow key={appt.id}>
+                              <TableCell className="font-medium">
+                                {format(new Date(appt.start_time), 'h:mm a')}
+                              </TableCell>
+                              <TableCell>{appt.client_name}</TableCell>
+                              <TableCell>{appt.barbers?.name || 'N/A'}</TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {getServiceNamesForAppointment(appt)}
+                              </TableCell>
+                              <TableCell className="text-right flex gap-2 justify-end">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCheckInAppointment(appt)}
+                                  title="Check In Appointment"
+                                >
+                                  <CalendarCheck className="h-4 w-4 mr-1" /> Check In
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleCancelAppointment(appt.id)}
+                                  title="Cancel Appointment"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <p className="text-sm text-center text-muted-foreground py-4">
+                        No upcoming appointments for today.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+
               {/* Live Queue Section */}
               <motion.div
                 initial="initial"
                 animate="animate"
                 variants={staggerContainer}
-                className="grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+                className="grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 mt-8"
               >
                 {workingBarbers.map((barber) => {
                   const barberQueue = queueEntries.filter(
@@ -2204,7 +2388,6 @@ export default function DashboardPage() {
                         whileHover="hover"
                         className={`transition-all duration-300 ${inProgressWithBarber ? "border-primary shadow-primary/10 shadow-lg" : "border-border bg-card"}`}
                       >
-                        {/* The Card component itself is now a child of motion.div */}
                         <Card className="h-full w-full">
                           {inProgressWithBarber ? (
                             <>
@@ -2268,7 +2451,6 @@ export default function DashboardPage() {
                               whileTap={{ scale: 0.98 }}
                               className="bg-card border-border transition-all hover:border-border/50 hover:-translate-y-1 cursor-pointer"
                             >
-                              {/* The Card component itself is now a child of motion.div */}
                               <Card className="h-full w-full">
                                 <CardHeader className="p-4">
                                   <CardTitle className="text-base flex justify-between items-start">
@@ -2277,6 +2459,9 @@ export default function DashboardPage() {
                                       <span className="text-muted-foreground text-xs ml-2">
                                         with {entry.barbers?.name || "N/A"}
                                       </span>
+                                      {entry.appointment_id && ( // Indicate if from an appointment
+                                        <Badge variant="outline" className="ml-2 text-xs">Booked</Badge>
+                                      )}
                                     </span>
                                     <div className="flex gap-1 flex-shrink-0">
                                       <Button
@@ -2325,6 +2510,7 @@ export default function DashboardPage() {
                                     </div>
                                   </CardTitle>
                                   <CardDescription className="text-xs pt-1">
+                                    Services:{" "}
                                     {entry.queue_entry_services
                                       ?.map((item) => item.services?.name)
                                       .filter(Boolean)
@@ -2488,9 +2674,8 @@ export default function DashboardPage() {
                   >
                     {/* Key Metrics Cards */}
                     <div className="grid gap-4 md:grid-cols-3 mb-8">
-                      {/* Corrected: Wrap Card with motion.div for animations */}
                       <motion.div variants={fadeIn} whileHover="hover">
-                        <Card className="h-full w-full"> {/* Card is now a child */}
+                        <Card className="h-full w-full">
                           <CardHeader>
                             <CardTitle>Total Revenue</CardTitle>
                           </CardHeader>
@@ -2501,7 +2686,6 @@ export default function DashboardPage() {
                           </CardContent>
                         </Card>
                       </motion.div>
-                      {/* Repeat for other two analytics cards */}
                       <motion.div variants={fadeIn} whileHover="hover">
                         <Card className="h-full w-full">
                           <CardHeader>
@@ -2676,7 +2860,7 @@ export default function DashboardPage() {
         open={isBreakDialogOpen}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
-            setBarberForBreak(null); // Clear barber selection when dialog closes
+            setBarberForBreak(null);
           }
           setIsBreakDialogOpen(isOpen);
         }}
