@@ -53,7 +53,7 @@ import {
 import { toast } from "sonner";
 import { motion, easeInOut } from "framer-motion";
 import { Calendar } from "../../../components/ui/calendar";
-import { format, addDays, isSameDay, isBefore, isAfter, addMinutes } from "date-fns";
+import { format, addDays, isBefore, isAfter, addMinutes } from "date-fns";
 
 // Animation Variants
 const fadeIn = {
@@ -774,7 +774,7 @@ export default function BookingClient({
           <Alert className="mt-6 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-center p-5 shadow-sm rounded-xl">
   <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-400 mb-2" />
   <AlertTitle className="text-emerald-800 dark:text-emerald-300 text-xl font-semibold mb-1">
-    You're in the Queue!
+    You&apos;re in the Queue!
   </AlertTitle>
 
   <AlertDescription className="flex flex-col items-center text-center w-full text-emerald-700 dark:text-emerald-400 text-base space-y-3">
