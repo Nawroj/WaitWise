@@ -879,9 +879,10 @@ export default function DashboardPage() {
     if (!shop) return;
 
     // Check if the barber already has someone in progress
-    const barberHasInProgress = queueEntries.some(
-      (entry) => entry.barber_id === appointment.barber_id && entry.status === "in_progress"
-    );
+    // Check if the barber already has someone in progress
+const barberHasInProgress = queueEntries.some(
+  (entry) => entry.barbers?.id === appointment.barber_id && entry.status === "in_progress"
+);
 
     if (barberHasInProgress) {
         toast.info(`${appointment.barbers?.name || 'This staff member'} is currently busy. Adding ${appointment.client_name} to the queue.`);
