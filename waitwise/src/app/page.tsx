@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { MobileNav } from "@/components/ui/MobileNav";
@@ -11,10 +11,8 @@ import {
   Clock,
   ThumbsUp,
   TrendingUp,
-  PlayCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import Image from "next/image";
 
 // Animation variants for Framer Motion
 const fadeIn = {
