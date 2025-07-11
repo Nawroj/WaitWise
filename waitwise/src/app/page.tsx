@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { MobileNav } from "@/components/ui/MobileNav";
@@ -10,14 +11,15 @@ import {
   Clock,
   ThumbsUp,
   TrendingUp,
+  PlayCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 // Animation variants for Framer Motion
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6, ease: "easeInOut" },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeInOut" } },
 };
 
 const staggerContainer = {
@@ -28,11 +30,108 @@ const staggerContainer = {
   },
 };
 
-export default function HomePage() {
+// Define video demo data with categories
+const demoVideos = [
+  {
+    id: "salon_dashboard",
+    category: "salon",
+    title: "Salon Dashboard",
+    description: "Manage queues and staff for your salon.",
+    videoSrc: "/videos/salon_dashboard.mp4",
+  },
+  {
+    id: "salon_analytics",
+    category: "salon",
+    title: "Salon Analytics",
+    description: "Dive into your salon's daily performance metrics.",
+    videoSrc: "/videos/salon_analytics.mp4",
+  },
+  {
+    id: "salon_client_page",
+    category: "salon",
+    title: "Salon Booking/Queue Page",
+    description: "Client's view for joining queue or booking.",
+    videoSrc: "/videos/salon_client_page.mp4",
+  },
+  {
+    id: "food_truck_dashboard",
+    category: "food_truck",
+    title: "Food Truck Dashboard",
+    description: "Efficiently manage orders and staff for your food truck.",
+    videoSrc: "/videos/food_truck_dashboard.mp4",
+  },
+  {
+    id: "food_truck_order_page",
+    category: "food_truck",
+    title: "Customer's Ordering Page",
+    description: "Customer's ordering experience on mobile.",
+    videoSrc: "/videos/food_truck_order_page.mp4",
+  },
+];
+
+// --- NEW COMPONENT FOR VIDEO DEMO CARD ---
+interface VideoDemoCardProps {
+  demo: typeof demoVideos[0];
+  variants: typeof fadeIn;
+}
+
+const VideoDemoCard: React.FC<VideoDemoCardProps> = ({ demo, variants }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.load();
+      videoRef.current.play().catch((error) => {
+        console.warn(`Autoplay prevented for ${demo.title}:`, error);
+      });
+    }
+  }, [demo.videoSrc]);
+
   return (
-    <div className="flex flex-col items-center min-h-screen bg-background text-foreground">
+    <motion.div
+      key={demo.id}
+      className="flex-shrink-0 w-full min-w-[140px] max-w-[180px]
+                 flex flex-col items-center text-center gap-2 p-3 rounded-lg border border-border shadow-md
+                 bg-background hover:bg-gray-50 transition-colors duration-300"
+      variants={variants}
+    >
+      <div className="w-full aspect-[9/16] bg-gray-200 rounded-lg overflow-hidden relative">
+        <video
+          ref={videoRef}
+          autoPlay={false}
+          loop
+          muted
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 w-full h-full object-cover"
+        >
+          <source src={demo.videoSrc} type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      </div>
+      <h4 className="font-bold text-base mt-1 text-foreground">{demo.title}</h4>
+      <p className="text-muted-foreground text-xs">{demo.description}</p>
+    </motion.div>
+  );
+};
+// --- END NEW COMPONENT ---
+
+export default function HomePage() {
+  const categories: { [key: string]: typeof demoVideos } = demoVideos.reduce(
+    (acc, video) => {
+      if (!acc[video.category]) {
+        acc[video.category] = [];
+      }
+      acc[video.category].push(video);
+      return acc;
+    },
+    {} as { [key: string]: typeof demoVideos }
+  );
+
+  return (
+    <div className="flex flex-col items-center min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 text-foreground">
       {/* Header section with branding and navigation */}
-      <header className="w-full p-4 flex justify-between items-center max-w-7xl mx-auto border-b border-border/50">
+      <header className="w-full p-4 flex justify-between items-center max-w-7xl mx-auto border-b border-border/50 bg-transparent backdrop-blur-sm z-10 sticky top-0"> {/* Changed bg-background/80 to bg-transparent */}
         <motion.h1
           className="text-2xl font-bold text-primary"
           initial={{ opacity: 0, x: -20 }}
@@ -68,7 +167,7 @@ export default function HomePage() {
 
       <main className="flex-grow w-full">
         {/* Hero section: Main headline and call to action */}
-        <section className="w-full py-24 md:py-32 lg:py-40">
+        <section className="w-full py-24 md:py-32 lg:py-40 bg-transparent">
           <motion.div
             className="container mx-auto px-4 text-center"
             initial="initial"
@@ -76,7 +175,7 @@ export default function HomePage() {
             variants={staggerContainer}
           >
             <motion.h2
-              className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl"
+              className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl text-foreground"
               variants={fadeIn}
             >
               The Smart Way to Manage Your Waitlist
@@ -101,10 +200,57 @@ export default function HomePage() {
           </motion.div>
         </section>
 
+        {/* --- */}
+
+        {/* Demo Videos Section */}
+        <section id="demos" className="w-full py-20 bg-transparent">
+          <motion.div
+            className="container mx-auto px-4"
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={staggerContainer}
+          >
+            <motion.div className="mx-auto max-w-3xl text-center mb-16" variants={fadeIn}>
+              <h3 className="text-3xl font-bold text-foreground">See WaitWise in Action</h3>
+              <p className="mt-2 text-muted-foreground">
+                Explore how our platform works for different business types.
+              </p>
+            </motion.div>
+
+            {/* Render each category with its own horizontally scrollable video grid */}
+            {Object.keys(categories).map((categoryKey) => (
+              <div key={categoryKey} className="mb-12 last:mb-0">
+                <motion.h4
+                  className="text-2xl font-bold text-center mb-8 capitalize text-foreground"
+                  variants={fadeIn}
+                >
+                  {categoryKey.replace('_', ' ')} Demos
+                </motion.h4>
+
+                <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar
+                                md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-8 justify-items-center">
+                  {categories[categoryKey].length > 0 ? (
+                    categories[categoryKey].map((demo) => (
+                      <VideoDemoCard key={demo.id} demo={demo} variants={fadeIn} />
+                    ))
+                  ) : (
+                    <motion.div variants={fadeIn} className="col-span-full text-center text-muted-foreground py-8">
+                      No demo videos available for this category yet.
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        </section>
+
+        {/* --- */}
+
         {/* "How It Works" section: Explains the process in three steps */}
         <section
           id="how-it-works"
-          className="w-full py-20 bg-card border-y border-border"
+          className="w-full py-20 bg-background/80 border-y border-border"
         >
           <motion.div
             className="container mx-auto px-4"
@@ -117,7 +263,7 @@ export default function HomePage() {
               className="mx-auto max-w-3xl text-center"
               variants={fadeIn}
             >
-              <h3 className="text-3xl font-bold">How It Works</h3>
+              <h3 className="text-3xl font-bold text-foreground">How It Works</h3>
               <p className="mt-2 text-muted-foreground">
                 Get up and running in three simple steps.
               </p>
@@ -126,7 +272,6 @@ export default function HomePage() {
               className="mx-auto mt-16 grid max-w-5xl items-start gap-10 text-left md:grid-cols-3 lg:gap-12"
               variants={staggerContainer}
             >
-              {/* Individual steps for how WaitWise works */}
               {[
                 {
                   title: "Set Up Your Shop",
@@ -153,7 +298,9 @@ export default function HomePage() {
                     {i + 1}
                   </div>
                   <div>
-                    <h4 className="font-bold text-xl">{step.title}</h4>
+                    <h4 className="font-bold text-xl text-foreground">
+                      {step.title}
+                    </h4>
                     <p className="text-muted-foreground mt-1">
                       {step.description}
                     </p>
@@ -164,8 +311,10 @@ export default function HomePage() {
           </motion.div>
         </section>
 
+        {/* --- */}
+
         {/* Features & Benefits section: Highlights key advantages of using WaitWise */}
-        <section id="features" className="w-full py-20">
+        <section id="features" className="w-full py-20 bg-transparent">
           <motion.div
             className="container mx-auto px-4"
             initial="initial"
@@ -177,12 +326,13 @@ export default function HomePage() {
               className="mx-auto max-w-3xl text-center mb-16"
               variants={fadeIn}
             >
-              <h3 className="text-3xl font-bold">
+              <h3 className="text-3xl font-bold text-foreground">
                 Everything You Need for a Seamless Flow
               </h3>
             </motion.div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {/* List of features with icons, titles, and descriptions */}
+            {/* Benefits cards grid - maintains mobile scroll / desktop grid */}
+            <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar
+                            md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-8 justify-items-center">
               {[
                 {
                   icon: <Users className="h-10 w-10 text-primary" />,
@@ -223,12 +373,16 @@ export default function HomePage() {
               ].map((feature, i) => (
                 <motion.div
                   key={i}
-                  className="flex flex-col items-center text-center gap-4 p-6 rounded-lg border border-transparent hover:border-border transition-all hover:-translate-y-1"
+                  className="flex-shrink-0 min-w-[180px] max-w-[220px]
+                             flex flex-col items-center text-center gap-2 p-4 rounded-lg border border-border shadow-sm
+                             bg-background hover:bg-gray-50 transition-colors duration-300"
                   variants={fadeIn}
                 >
                   {feature.icon}
-                  <h4 className="font-bold text-xl mt-2">{feature.title}</h4>
-                  <p className="text-muted-foreground text-sm">
+                  <h4 className="font-bold text-base mt-1 text-foreground">
+                    {feature.title}
+                  </h4>
+                  <p className="text-muted-foreground text-xs">
                     {feature.description}
                   </p>
                 </motion.div>
@@ -238,8 +392,10 @@ export default function HomePage() {
         </section>
       </main>
 
+      {/* --- */}
+
       {/* Footer section with legal links and copyright */}
-      <footer className="w-full p-8 border-t border-border/50">
+      <footer className="w-full p-8 border-t border-border/50 bg-background">
         <div className="max-w-7xl mx-auto text-center">
           <div className="mb-4">
             <nav className="flex justify-center gap-6">
