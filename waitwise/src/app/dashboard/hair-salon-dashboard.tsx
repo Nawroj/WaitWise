@@ -51,6 +51,7 @@ import {
   DropdownMenuSeparator,
 } from "../../components/ui/dropdown-menu";
 import {
+  LineChart,
   Trash2,
   Edit,
   RefreshCw,
@@ -1794,17 +1795,18 @@ const barberHasInProgress = queueEntries.some(
               <div className="md:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-5 w-5" />
+                    <Button variant="ghost" size="icon" className="hover:bg-accent/50"> {/* Added hover effect */}
+                     <MoreVertical className="h-5 w-5 text-muted-foreground" /> {/* Neutral color */}
+                     <span className="sr-only">Open menu</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="w-[200px]"> 
                     <DropdownMenuItem
                       onSelect={(e) => e.preventDefault()}
                       className="focus:bg-transparent"
                     >
                       <div className="flex items-center justify-between w-full">
-                        <Label htmlFor="sms-mode-mobile">Live SMS</Label>
+                        <Label htmlFor="sms-mode-mobile" className="cursor-pointer text-sm">Live SMS</Label>
                         <Switch
                           id="sms-mode-mobile"
                           checked={!isSmsPaused}
@@ -1815,32 +1817,33 @@ const barberHasInProgress = queueEntries.some(
                     <DropdownMenuItem
                       onSelect={() => window.open(`/shop/${shop.id}`, "_blank")}
                     >
-                      Join Queue Page
+                      <Link href={`/shop/${shop.id}`} target="_blank" className="flex items-center w-full">
+                        <Users className="mr-2 h-4 w-4" /> Client Booking Page
+                     </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={() => setActiveEditSection("details")}
-                    >
-                      Edit Shop Details
+                    <DropdownMenuItem onSelect={() => router.push("/dashboard/analytics")}>
+                      <LineChart className="mr-2 h-4 w-4" /> Analytics
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => setActiveEditSection("staff")}
-                    >
-                      Manage Staff
+                    {/* Separate options for clarity */}
+                   <DropdownMenuItem onSelect={() => setActiveEditSection("details")}>
+                      <Store className="mr-2 h-4 w-4" /> Edit Shop Details
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => setActiveEditSection("services")}
-                    >
-                      Manage Services
+                    <DropdownMenuItem onSelect={() => setActiveEditSection("staff")}>
+                      <Users className="mr-2 h-4 w-4" /> Manage Staff
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setActiveEditSection("services")}>
+                      <ListPlus className="mr-2 h-4 w-4" /> Manage Services
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setActiveEditSection("qr")}>
-                      Get QR Code
+                      <QrCode className="mr-2 h-4 w-4" /> Get QR Code
                     </DropdownMenuItem>
+                    
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => setIsBillingDialogOpen(true)}>
                       Billing & Subscription
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={handleLogout}>
+                    <DropdownMenuItem onSelect={handleLogout} className="text-red-500">
                       Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -1890,60 +1893,67 @@ const barberHasInProgress = queueEntries.some(
               <Label htmlFor="sms-mode">Live SMS</Label>
             </div>
             <Link href={`/shop/${shop.id}`} target="_blank">
-              <Button
-                variant="outline"
-                className="hover:text-primary hover:border-primary transition-colors"
-              >
-                Join Queue
-              </Button>
+              <span className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer px-3 py-2">
+                 Queue / Appointments
+                </span>
+
             </Link>
-            <Button
-              variant="outline"
-              className="hover:text-primary hover:border-primary transition-colors"
-              onClick={() => setIsBillingDialogOpen(true)}
-            >
-              Billing
-            </Button>
-            {/* Edit Shop Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="transition-transform hover:scale-105">
-                  Edit Shop <Settings className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() => setActiveEditSection("details")}
-                >
-                  <Store className="mr-2 h-4 w-4" />
-                  Shop Details
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => setActiveEditSection("staff")}
-                >
-                  <Users className="mr-2 h-4 w-4" />
-                  Manage Staff
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => setActiveEditSection("services")}
-                >
-                  <ListPlus className="mr-2 h-4 w-4" />
-                  Manage Services
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setActiveEditSection("qr")}>
-                  <QrCode className="mr-2 h-4 w-4" />
-                  Get QR Code
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              variant="ghost"
-              className="hover:text-primary transition-colors"
-              onClick={handleLogout}
-            >
-              Logout
-            </Button>
-          </div>
+            {/* New Analytics Button */}
+            <Link href="/dashboard/analytics">
+                <span className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer px-3 py-2 flex items-center">
+                  <LineChart className="mr-2 h-4 w-4" /> Analytics
+                </span>
+              </Link>
+              {/* Standalone QR Code button */}
+              <span
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer px-3 py-2 flex items-center"
+                onClick={() => setActiveEditSection("qr")}
+              >
+                <QrCode className="mr-2 h-4 w-4" /> Get QR Code
+              </span>
+              <span
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer px-3 py-2"
+                onClick={() => setIsBillingDialogOpen(true)}
+              >
+                Billing
+              </span>
+              {/* Edit Shop Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <span
+                    className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer px-3 py-2 flex items-center"
+                  >
+                    <Edit className="mr-2 h-4 w-4" /> Edit <ChevronDown className="ml-2 h-4 w-4" />
+                  </span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={() => setActiveEditSection("details")}
+                  >
+                    <Store className="mr-2 h-4 w-4" />
+                    Shop Details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => setActiveEditSection("staff")}
+                  >
+                    <Users className="mr-2 h-4 w-4" />
+                    Manage Staff
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => setActiveEditSection("services")}
+                  >
+                    <ListPlus className="mr-2 h-4 w-4" />
+                    Manage Services
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span
+                className="text-sm font-medium text-muted-foreground hover:text-destructive transition-colors cursor-pointer px-3 py-2" // Destructive hover for logout
+                onClick={handleLogout}
+              >
+                Logout
+              </span>
+            </div>
         </motion.header>
 
         {/* Payment Problem Alert */}
@@ -2281,62 +2291,6 @@ const barberHasInProgress = queueEntries.some(
             <>
               {/* Upcoming Appointments Section */}
               <motion.div variants={fadeIn} className="mt-8">
-                <h2 className="text-2xl font-bold tracking-tight mb-4">
-                  Upcoming Appointments
-                </h2>
-                <Card className="bg-card border-border">
-                  <CardContent className="pt-6">
-                    {upcomingAppointments.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Time</TableHead>
-                            <TableHead>Client</TableHead>
-                            <TableHead>Staff</TableHead>
-                            <TableHead>Services</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {upcomingAppointments.map((appt) => (
-                            <TableRow key={appt.id}>
-                              <TableCell className="font-medium">
-                                {format(new Date(appt.start_time), 'h:mm a')}
-                              </TableCell>
-                              <TableCell>{appt.client_name}</TableCell>
-                              <TableCell>{appt.barbers?.name || 'N/A'}</TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
-                                {getServiceNamesForAppointment(appt)}
-                              </TableCell>
-                              <TableCell className="text-right flex gap-2 justify-end">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleCheckInAppointment(appt)}
-                                  title="Check In Appointment"
-                                >
-                                  <CalendarCheck className="h-4 w-4 mr-1" /> Check In
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleCancelAppointment(appt.id)}
-                                  title="Cancel Appointment"
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <p className="text-sm text-center text-muted-foreground py-4">
-                        No upcoming appointments for today.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
               </motion.div>
 
               {/* Live Queue Section */}
@@ -2344,9 +2298,9 @@ const barberHasInProgress = queueEntries.some(
                 initial="initial"
                 animate="animate"
                 variants={staggerContainer}
-                className="grid gap-8 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 mt-8"
+                className="flex overflow-x-auto gap-6 pb-4 -mb-4 mt-8 no-scrollbar" // Horizontal scrollable layout
               >
-                {workingBarbers.map((barber) => {
+                {workingBarbers.map((barber, index) => { // This is the *correct* map
                   const barberQueue = queueEntries.filter(
                     (entry) => entry.barbers?.id === barber.id,
                   );
@@ -2356,177 +2310,186 @@ const barberHasInProgress = queueEntries.some(
                   const inProgressWithBarber = barberQueue.find(
                     (entry) => entry.status === "in_progress",
                   );
+                  const upcomingAppointmentsForBarber = upcomingAppointments.filter(
+                     (appt) => appt.barber_id === barber.id
+                   );
+
+                   // Fallback for barberColorMap to provide more specific pastel colors
+                   const getColorPalette = (barberIndex: number) => { // Renamed parameter to avoid conflict
+                     const palettes = [
+                       { bg: 'from-blue-100 to-blue-200', text: 'text-blue-800', border: 'border-blue-300' },
+                       { bg: 'from-green-100 to-green-200', text: 'text-green-800', border: 'border-green-300' },
+                       { bg: 'from-purple-100 to-purple-200', text: 'text-purple-800', border: 'border-purple-300' },
+                       { bg: 'from-yellow-100 to-yellow-200', text: 'text-yellow-800', border: 'border-yellow-300' },
+                       { bg: 'from-pink-100 to-pink-200', text: 'text-pink-800', border: 'border-pink-300' },
+                       { bg: 'from-indigo-100 to-indigo-200', text: 'text-indigo-800', border: 'border-indigo-300' },
+                     ];
+                     return palettes[barberIndex % palettes.length];
+                   };
+                   const { bg, text, border } = getColorPalette(index); // Use map 'index' to pick color
+
                   return (
                     <motion.div
                       key={barber.id}
                       variants={fadeIn}
-                      className="space-y-4"
+                      className="min-w-[280px] md:min-w-[320px] lg:min-w-[300px] flex-shrink-0" // Ensures horizontal spacing and prevents collapsing
                     >
-                      <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-semibold flex items-center gap-2">
-                          <Avatar className="h-8 w-8 border-2 border-border">
-                            <AvatarImage src={barber.avatar_url || ""} />
-                            <AvatarFallback>
-                              {barber.name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          {barber.name}
-                        </h2>
-                        {barber.is_on_break && (
-                          <motion.div
-                            initial={{ opacity: 0, x: 10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <Badge variant="destructive" className="flex items-center gap-1">
-                              <PauseCircle className="h-3 w-3" /> ON BREAK
-                            </Badge>
-                          </motion.div>
-                        )}
-                      </div>
-                      <motion.div
-                        variants={cardHover}
-                        whileHover="hover"
-                        className={`transition-all duration-300 ${inProgressWithBarber ? "border-primary shadow-primary/10 shadow-lg" : "border-border bg-card"}`}
-                      >
-                        <Card className="h-full w-full">
-                          {inProgressWithBarber ? (
-                            <>
-                              <CardHeader>
-                                <CardTitle className="flex justify-between items-start">
-                                  <span>{inProgressWithBarber.client_name}</span>
-                                  <Badge className="bg-primary text-primary-foreground">
-                                    In Progress
-                                  </Badge>
-                                </CardTitle>
-                                <CardDescription>
-                                  Services:{" "}
-                                  {inProgressWithBarber.queue_entry_services
-                                    ?.map((item) => item.services?.name)
-                                    .filter(Boolean)
-                                    .join(", ") || "N/A"}
-                                </CardDescription>
-                              </CardHeader>
-                              <CardFooter className="flex justify-end">
-                                <Button
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700 transition-transform hover:scale-105"
-                                  onClick={() =>
-                                    handleUpdateStatus(
-                                      inProgressWithBarber.id,
-                                      "done",
-                                    )
-                                  }
-                                >
-                                  Mark as Done
-                                </Button>
-                              </CardFooter>
-                            </>
-                          ) : (
-                            <CardContent className="pt-6">
-                              <p className="text-sm text-center text-muted-foreground">
-                                Available
-                              </p>
-                            </CardContent>
-                          )}
-                        </Card>
-                      </motion.div>
-                      <Separator className="bg-border/50" />
-                      <motion.div
-                        initial="initial"
-                        animate="animate"
-                        variants={staggerContainer}
-                        className="space-y-2"
-                      >
-                        <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                          <Badge variant="secondary">
-                            {waitingForBarber.length}
-                          </Badge>
-                          Waiting
-                        </h3>
-                        {waitingForBarber.map((entry, index) => (
-                          <motion.div key={entry.id} variants={fadeIn}>
-                            <motion.div
-                              variants={cardHover}
-                              whileHover="hover"
-                              whileTap={{ scale: 0.98 }}
-                              className="bg-card border-border transition-all hover:border-border/50 hover:-translate-y-1 cursor-pointer"
-                            >
-                              <Card className="h-full w-full">
-                                <CardHeader className="p-4">
-                                  <CardTitle className="text-base flex justify-between items-start">
-                                    <span className="font-semibold">
-                                      {index + 1}. {entry.client_name}
-                                      <span className="text-muted-foreground text-xs ml-2">
-                                        with {entry.barbers?.name || "N/A"}
-                                      </span>
-                                      {entry.appointment_id && ( // Indicate if from an appointment
-                                        <Badge variant="outline" className="ml-2 text-xs">Booked</Badge>
-                                      )}
-                                    </span>
-                                    <div className="flex gap-1 flex-shrink-0">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 hover:text-primary transition-colors"
-                                        onClick={() =>
-                                          handleOpenEditDialog(entry)
-                                        }
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 hover:text-destructive transition-colors"
-                                        onClick={() =>
-                                          handleUpdateStatus(entry.id, "no_show")
-                                        }
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="hover:bg-primary hover:text-primary-foreground transition-colors"
-                                        onClick={() =>
-                                          handleUpdateStatus(
-                                            entry.id,
-                                            "in_progress",
-                                          )
-                                        }
-                                        disabled={
-                                          !!inProgressWithBarber ||
-                                          barber.is_on_break ||
-                                          shop.subscription_status ===
-                                            "past_due" ||
-                                          (totalEventCount >= 50 &&
-                                            (shop.subscription_status ===
-                                              "trial" ||
-                                              shop.subscription_status === null))
-                                        }
-                                      >
-                                        Start
-                                      </Button>
-                                    </div>
-                                  </CardTitle>
-                                  <CardDescription className="text-xs pt-1">
+                      {/* Individual Barber Card */}
+                      <Card className={`w-full h-full border-t-4 ${border} ${bg} text-foreground overflow-hidden`}>
+                        <CardHeader className="p-4 border-b border-border/50 bg-card/60">
+                          <div className="flex justify-between items-center mb-2">
+                            <h2 className={`text-xl font-semibold flex items-center gap-2 ${text}`}>
+                              <Avatar className="h-8 w-8 border-2 border-primary/50">
+                                <AvatarImage src={barber.avatar_url || ""} alt={barber.name} />
+                                <AvatarFallback className="bg-primary/20 text-primary-foreground">
+                                  {barber.name.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                              {barber.name}
+                            </h2>
+                            {barber.is_on_break && (
+                              <Badge variant="destructive" className="flex items-center gap-1 text-sm">
+                                <PauseCircle className="h-3 w-3" /> ON BREAK
+                                {barber.break_end_time && (
+                                  <span className="ml-1 text-xs">{format(new Date(barber.break_end_time), 'h:mm a')}</span>
+                                )}
+                              </Badge>
+                            )}
+                          </div>
+                          {/* Current Client In Progress */}
+                          <div className="text-sm">
+                            {inProgressWithBarber ? (
+                              <div className="bg-card p-3 rounded-md border border-primary/30 shadow-inner flex justify-between items-center">
+                                <div>
+                                  <p className="font-semibold">{inProgressWithBarber.client_name}</p>
+                                  <p className="text-muted-foreground text-xs">
                                     Services:{" "}
-                                    {entry.queue_entry_services
+                                    {inProgressWithBarber.queue_entry_services
                                       ?.map((item) => item.services?.name)
                                       .filter(Boolean)
-                                      .join(", ") || "No services listed"}
-                                  </CardDescription>
-                                </CardHeader>
-                              </Card>
-                            </motion.div>
-                          </motion.div>
-                        ))}
-                      </motion.div>
+                                      .join(", ") || "N/A"}
+                                  </p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => handleUpdateStatus(inProgressWithBarber.id, "done")}
+                                >
+                                  Done
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="text-center text-muted-foreground py-3 bg-card rounded-md border border-dashed">
+                                Available
+                              </div>
+                            )}
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="p-4 space-y-4">
+  {/* Waiting Queue */}
+  <div>
+    <h3 className="text-sm font-semibold mb-2 flex items-center gap-1">
+      <Badge variant="secondary">{waitingForBarber.length}</Badge> Waiting
+    </h3>
+    {waitingForBarber.length > 0 ? (
+      <ul className="space-y-2 text-sm max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+        {waitingForBarber.map((entry) => (
+          <li key={entry.id} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
+            {/* Client name on the left */}
+            <span>{entry.client_name}</span>
+
+            {/* Group Start Button and Dropdown Menu on the right */}
+            <div className="flex items-center gap-2"> {/* This div groups the actions */}
+              {/* Start Button for Waiting Clients */}
+              {!inProgressWithBarber && !barber.is_on_break && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-3 py-1 text-xs"
+                  onClick={() => handleUpdateStatus(entry.id, "in_progress")}
+                  disabled={
+                    // Disable if barber is busy, on break, or trial limits reached
+                    !!inProgressWithBarber ||
+                    barber.is_on_break ||
+                    shop.subscription_status === "past_due" ||
+                    (totalEventCount >= 50 &&
+                      (shop.subscription_status === "trial" ||
+                       shop.subscription_status === null))
+                  }
+                >
+                  Start
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleOpenEditDialog(entry)}>
+                    <Edit className="mr-2 h-4 w-4" /> Reassign
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleUpdateStatus(entry.id, "no_show")}>
+                    <XCircle className="mr-2 h-4 w-4" /> Mark No-Show
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDeleteFromQueue(entry.id)} className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p className="text-xs text-muted-foreground text-center py-2">No one waiting.</p>
+    )}
+  </div>
+
+                          {/* Upcoming Appointments */}
+                          <Separator className="bg-border/50" />
+                          <div>
+                            <h3 className="text-sm font-semibold mb-2">Upcoming Appointments</h3>
+                            {upcomingAppointmentsForBarber.length > 0 ? (
+                              <ul className="space-y-2 text-sm max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                                {upcomingAppointmentsForBarber.map((appt) => (
+                                  <li key={appt.id} className="flex items-center justify-between p-2 rounded-md bg-muted/30">
+                                    <div>
+                                      <p className="font-semibold">{appt.client_name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {format(new Date(appt.start_time), 'h:mm a')} - {getServiceNamesForAppointment(appt)}
+                                      </p>
+                                    </div>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                                          <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleCheckInAppointment(appt)}>
+                                          <CalendarCheck className="mr-2 h-4 w-4" /> Check In
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleCancelAppointment(appt.id)} className="text-destructive">
+                                          <XCircle className="mr-2 h-4 w-4" /> Cancel
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-xs text-muted-foreground text-center py-2">No upcoming appointments.</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     </motion.div>
                   );
                 })}
-              </motion.div>
+</motion.div>
               {/* Completed and No-Show Lists */}
               <motion.div
                 initial="initial"
@@ -2639,184 +2602,14 @@ const barberHasInProgress = queueEntries.some(
                   </Card>
                 </motion.div>
               </motion.div>
-              {/* Analytics Section */}
-              <motion.div variants={fadeIn} className="mt-8 xl:col-span-3">
-                <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-                  <h2 className="text-2xl font-bold tracking-tight">
-                    Analytics
-                  </h2>
-                  {/* Analytics Range Selector */}
-                  <div>
-                    <Select
-                      value={analyticsRange}
-                      onValueChange={setAnalyticsRange}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Select a range" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="today">Today</SelectItem>
-                        <SelectItem value="week">This Week</SelectItem>
-                        <SelectItem value="month">This Month</SelectItem>
-                        <SelectItem value="all_time">All Time</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {isAnalyticsLoading ? (
-                  <p className="text-center text-muted-foreground py-10">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                  </p>
-                ) : analyticsData ? (
-                  <motion.div
-                    initial="initial"
-                    animate="animate"
-                    variants={staggerContainer}
-                  >
-                    {/* Key Metrics Cards */}
-                    <div className="grid gap-4 md:grid-cols-3 mb-8">
-                      <motion.div variants={fadeIn} whileHover="hover">
-                        <Card className="h-full w-full">
-                          <CardHeader>
-                            <CardTitle>Total Revenue</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-2xl font-bold">
-                              {(analyticsData.totalRevenue || 0).toFixed(2)}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                      <motion.div variants={fadeIn} whileHover="hover">
-                        <Card className="h-full w-full">
-                          <CardHeader>
-                            <CardTitle>Customers Served</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-2xl font-bold">
-                              {analyticsData.totalCustomers || 0}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                      <motion.div variants={fadeIn} whileHover="hover">
-                        <Card className="h-full w-full">
-                          <CardHeader>
-                            <CardTitle>No-Show Rate</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-2xl font-bold">
-                              {(analyticsData.noShowRate || 0).toFixed(1)}%
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </div>
-                    {/* Charts for Revenue and Clients per Staff Member */}
-                    <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
-                      <motion.div variants={fadeIn}>
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Revenue per Staff Member</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <ResponsiveContainer width="100%" height={300}>
-                              <BarChart
-                                data={analyticsData.barberRevenueData || []}
-                                layout="vertical"
-                                margin={{
-                                  top: 5,
-                                  right: 30,
-                                  left: 20,
-                                  bottom: 5,
-                                }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis
-                                  type="number"
-                                  tickFormatter={(value) => `$${value}`}
-                                />
-                                <YAxis
-                                  type="category"
-                                  dataKey="name"
-                                  width={80}
-                                />
-                                <Tooltip
-                                  formatter={(value: number) =>
-                                    `$${Number(value).toFixed(2)}`
-                                  }
-                                />
-                                <Bar dataKey="revenue" name="Total Revenue">
-                                  {(analyticsData.barberRevenueData || []).map(
-                                    (entry: { name: string }) => (
-                                      <Cell
-                                        key={`cell-${entry.name}`}
-                                        fill={
-                                          barberColorMap[entry.name] ||
-                                          "#8884d8"
-                                        }
-                                      />
-                                    ),
-                                  )}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                      <motion.div variants={fadeIn}>
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>Clients per Staff Member</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <ResponsiveContainer width="100%" height={300}>
-                              <PieChart>
-                                <Pie
-                                  data={analyticsData.barberClientData || []}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius={50}
-                                  outerRadius={90}
-                                  fill="#8884d8"
-                                  paddingAngle={5}
-                                  dataKey="clients"
-                                  nameKey="name"
-                                  label={({ name, clients }) =>
-                                    `${name}: ${clients}`
-                                  }
-                                >
-                                  {(analyticsData.barberClientData || []).map(
-                                    (entry: { name: string }) => (
-                                      <Cell
-                                        key={`cell-${entry.name}`}
-                                        fill={
-                                          barberColorMap[entry.name] ||
-                                          "#8884d8"
-                                        }
-                                      />
-                                    ),
-                                  )}
-                                </Pie>
-                                <Tooltip />
-                                <Legend />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    </div>
-                  </motion.div>
-                ) : (
-                  <p className="text-center text-muted-foreground">
-                    No analytics data available for this period.
-                  </p>
-                )}
-              </motion.div>
+              
             </>
           )}
         </motion.div>
       </div>
+      <footer className="mt-16 py-6 text-center text-gray-300 text-2xl font-bold"> {/* Changed text-2xl to text-3xl for bigger, removed text-primary */}
+  <p>WaitWise</p>
+</footer>
       {/* Dialog for Editing Queue Entry */}
       <Dialog
         open={isEditQueueEntryDialogOpen}
@@ -2901,4 +2694,5 @@ const barberHasInProgress = queueEntries.some(
       </Dialog>
     </>
   );
+  
 }
