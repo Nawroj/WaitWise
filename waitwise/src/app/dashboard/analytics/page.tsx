@@ -263,15 +263,14 @@ export default function AnalyticsPage() {
             variants={staggerContainer}
           >
             {/* Key Metrics Cards */}
-            {/* Adjusted grid layout to fit 2/3 and added gradients */}
-            <div className="grid grid-flow-col auto-cols-fr overflow-x-auto gap-4 pb-4 mb-8 sm:grid-cols-2 lg:grid-cols-3 justify-items-stretch">
+            <div className="grid grid-flow-col auto-cols-min overflow-x-auto gap-4 pb-4 mb-8 sm:grid-cols-2 lg:grid-cols-3 justify-items-stretch no-scrollbar">
               {/* Total Revenue Card */}
-              <motion.div variants={fadeIn}>
+              <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
                 <Card className="h-28 w-full bg-gradient-to-br from-blue-100 to-blue-200 text-foreground shadow-sm flex flex-col p-4">
                   <CardHeader className="p-0 mb-2 flex-grow">
                     <CardTitle className="text-sm font-semibold text-blue-800">Total Revenue</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-0 flex items-center justify-end flex-grow">
+                  <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
                     <p className="text-xl sm:text-lg md:text-xl font-bold text-blue-900">
                       ${(analyticsData.totalRevenue || 0).toFixed(2)}
                     </p>
@@ -279,12 +278,12 @@ export default function AnalyticsPage() {
                 </Card>
               </motion.div>
               {/* Customers Served Card */}
-              <motion.div variants={fadeIn}>
+              <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
                 <Card className="h-28 w-full bg-gradient-to-br from-green-100 to-green-200 text-foreground shadow-sm flex flex-col p-4">
                   <CardHeader className="p-0 mb-2 flex-grow">
                     <CardTitle className="text-sm font-semibold text-green-800">Served</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-0 flex items-center justify-end flex-grow">
+                  <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
                     <p className="text-xl sm:text-lg md:text-xl font-bold text-green-900">
                       {analyticsData.totalCustomers || 0}
                     </p>
@@ -292,12 +291,12 @@ export default function AnalyticsPage() {
                 </Card>
               </motion.div>
               {/* No-Show Rate Card */}
-              <motion.div variants={fadeIn}>
+              <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
                 <Card className="h-28 w-full bg-gradient-to-br from-red-100 to-red-200 text-foreground shadow-sm flex flex-col p-4">
                   <CardHeader className="p-0 mb-2 flex-grow">
                     <CardTitle className="text-sm font-semibold text-red-800">No-Show Rate</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-0 flex items-center justify-end flex-grow">
+                  <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
                     <p className="text-xl sm:text-lg md:text-xl font-bold text-red-900">
                       {(analyticsData.noShowRate || 0).toFixed(1)}%
                     </p>
