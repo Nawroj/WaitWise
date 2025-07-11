@@ -78,7 +78,7 @@
   --sidebar-ring: oklch(0.704 0.04 256.788);
 }
 
-.dark {
+/*.dark {
   --background: oklch(0.1 0 0);
   --foreground: oklch(0.95 0 0);
   --card: oklch(0.15 0 0);
@@ -98,14 +98,12 @@
   --input: oklch(0.2 0 0);
   --ring: oklch(0.7 0 0);
 
-  /* Optional chart colors using different grays */
   --chart-1: oklch(0.3 0 0);
   --chart-2: oklch(0.5 0 0);
   --chart-3: oklch(0.7 0 0);
   --chart-4: oklch(0.85 0 0);
   --chart-5: oklch(0.95 0 0);
 
-  /* Sidebar */
   --sidebar: oklch(0.15 0 0);
   --sidebar-foreground: oklch(0.98 0 0);
   --sidebar-primary: oklch(0.8 0 0);
@@ -114,28 +112,8 @@
   --sidebar-accent-foreground: oklch(0.1 0 0);
   --sidebar-border: oklch(0.3 0 0);
   --sidebar-ring: oklch(0.7 0 0);
-}
+}*/
 
-.pin-hosted-field {
-  height: 40px;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
-  border: 1px solid hsl(var(--input));
-  background-color: hsl(var(--background));
-  box-sizing: border-box;
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
-}
-
-.pin-hosted-field:hover {
-  border-color: hsl(var(--primary));
-}
-
-.pin-hosted-field:focus-within {
-  border-color: hsl(var(--primary));
-  box-shadow: 0 0 0 1px hsl(var(--primary));
-}
 
 
 @layer base {

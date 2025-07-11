@@ -40,6 +40,8 @@ import {
   DialogClose,
 } from "../../../components/ui/dialog";
 import {
+  Shuffle,
+  MapPin,
   Clock,
   Timer,
   ChevronDown,
@@ -710,29 +712,77 @@ export default function BookingClient({
         variants={fadeIn}
         initial="initial"
         animate="animate"
-        className="mb-8 text-center"
+        // Adjust vertical padding (py) for a more compact header
+        className="mb-4 flex items-center justify-between py-1" // Changed from no explicit padding
       >
-        {shop.logo_url ? (
-          <div className="flex items-center justify-center mb-4">
-            <Image
-              src={shop.logo_url}
-              alt={`${shop.name} Logo`}
-              width={160}
-              height={40}
-              className="object-contain"
-              priority
-            />
-          </div>
-        ) : (
-          <h1 className="text-4xl font-extrabold tracking-tight text-primary mb-3">
-            {shop.name}
-          </h1>
-        )}
-        <p className="text-lg text-muted-foreground">{shop.address}</p>
-        <p className="text-md text-muted-foreground mt-1">
-          Open from <span className="font-semibold text-primary/80">{formatTime(shop.opening_time)}</span> to{" "}
-          <span className="font-semibold text-primary/80">{formatTime(shop.closing_time)}</span>
-        </p>
+        {/* Left Section: Shop Logo/Name */}
+        <div className="flex items-center">
+          {shop.logo_url ? (
+            <div className="mr-3"> {/* Slightly reduced margin-right */}
+              <Image
+                src={shop.logo_url}
+                alt={`${shop.name} Logo`}
+                width={140} // Slightly reduced width for logo
+                height={35} // Slightly reduced height for logo
+                className="object-contain"
+                priority
+              />
+            </div>
+          ) : (
+            <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-primary"> {/* Reduced font size */}
+              {shop.name}
+            </h1>
+          )}
+        </div>
+
+        {/* Right Section: Icons */}
+        <div className="flex items-center gap-3"> {/* Slightly reduced gap between icons */}
+          {/* Location Icon */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
+                <MapPin className="h-5 w-5 md:h-6 md:w-6" /> {/* Optionally reduce icon size */}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="text-center">
+              <DialogHeader>
+                <DialogTitle>Shop Location</DialogTitle>
+                <DialogDescription>
+                  <p className="text-xlg font-semibold text-primary">{shop.name}</p>
+                  <p className="text-muted-foreground">{shop.address}</p>
+                </DialogDescription>
+              </DialogHeader>
+              
+            </DialogContent>
+          </Dialog>
+
+          {/* Clock Icon */}
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
+                <Clock className="h-5 w-5 md:h-6 md:w-6" /> {/* Optionally reduce icon size */}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="text-center">
+              <DialogHeader>
+                <DialogTitle>Operating Hours</DialogTitle>
+                <DialogDescription>
+                  <p className="text-xlg text-muted-foreground">
+                    Open from{" "}
+                    <span className="font-semibold text-primary/80">
+                      {formatTime(shop.opening_time)}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-semibold text-primary/80">
+                      {formatTime(shop.closing_time)}
+                    </span>
+                  </p>
+                </DialogDescription>
+              </DialogHeader>
+              
+            </DialogContent>
+          </Dialog>
+        </div>
       </motion.header>
 
       <Separator className="bg-border/50 mb-8" />
@@ -766,23 +816,22 @@ export default function BookingClient({
       ) : queueInfo ? (
         // Walk-in Queue Success Message
         <motion.div
-          variants={fadeIn}
-          initial="initial"
-          animate="animate"
-          className="mt-8"
-        >
-          <Alert className="mt-6 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-center p-5 shadow-sm rounded-xl">
-  <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-400 mb-2" />
-  <AlertTitle className="text-emerald-800 dark:text-emerald-300 text-xl font-semibold mb-1">
+  variants={fadeIn}
+  initial="initial"
+  animate="animate"
+  className="mt-8"
+>
+  <Alert className="mt-6 bg-green-100 border-green-300 text-center p-6 shadow-lg rounded-xl animate-fade-in animate-once">
+  <AlertTitle className="text-green-900 text-xl font-bold mb-2">
     You&apos;re in the Queue!
   </AlertTitle>
 
-  <AlertDescription className="flex flex-col items-center text-center w-full text-emerald-700 dark:text-emerald-400 text-base space-y-3">
+  <AlertDescription className="flex flex-col items-center text-center w-full text-green-700 text-base space-y-2">
     <p>
-      Thanks, <strong className="text-emerald-900 dark:text-emerald-200">{queueInfo.name}</strong>! You are number{" "}
-      <strong className="text-emerald-900 dark:text-emerald-200 text-lg">{queueInfo.position}</strong> in the queue.
+      Thanks, <strong className="text-green-900">{queueInfo.name}</strong>! You are number{" "}
+      <strong className="text-green-900 text-lg">{queueInfo.position}</strong> in the queue.
     </p>
-    <p className="text-sm text-emerald-600 dark:text-emerald-500">
+    <p className="text-sm text-green-600">
       We’ll send you an SMS when it’s your turn.
       <br />
       You can also check your position manually if you wish.
@@ -791,13 +840,13 @@ export default function BookingClient({
     <div className="mt-3 w-full flex justify-center">
       <Dialog open={isCheckStatusDialogOpen} onOpenChange={setIsCheckStatusDialogOpen}>
         <DialogTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="mx-auto text-sm text-emerald-700 border-emerald-700 dark:text-emerald-400 dark:border-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors"
+          {/* Changed from Button to text link */}
+          <span
+            className="cursor-pointer text-sm text-green-700 underline hover:text-green-800 transition-colors"
+            onClick={() => setIsCheckStatusDialogOpen(true)} // Manually open dialog since not a button
           >
             Check your position now
-          </Button>
+          </span>
         </DialogTrigger>
         <DialogContent className="text-center">
           <DialogHeader>
@@ -806,7 +855,7 @@ export default function BookingClient({
               Enter the name and phone number you used to join.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCheckPosition} className="space-y-4 mt-2 flex flex-col items-center">
+          <form onSubmit={handleCheckPosition} className="space-y-3 mt-2 flex flex-col items-center">
             <div className="grid gap-1 w-full max-w-sm text-left">
               <Label htmlFor="check-name" className="text-sm">Your Name</Label>
               <Input
@@ -841,8 +890,8 @@ export default function BookingClient({
             </Button>
           </form>
           {checkedPositionInfo && (
-            <Alert className="mt-4">
-              <AlertDescription className="text-sm text-center">
+            <Alert className="mt-4 bg-green-50 border-green-200 shadow-inner">
+              <AlertDescription className="text-sm text-center text-green-700">
                 {checkedPositionInfo}
               </AlertDescription>
             </Alert>
@@ -853,17 +902,15 @@ export default function BookingClient({
   </AlertDescription>
 </Alert>
 
-          <div className="mt-8 flex justify-center">
-  <Button
-    onClick={resetForm}
-    className="px-6 py-3 text-base md:text-lg font-semibold rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md hover:from-emerald-600 hover:to-green-700 hover:scale-[1.02] transition-all duration-200"
-  >
-    Start New Entry
-  </Button>
-</div>
-
-
-        </motion.div>
+  <div className="mt-8 flex justify-center">
+    <Button
+      onClick={resetForm}
+      className="px-6 py-3 text-base md:text-lg font-semibold rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md hover:from-emerald-600 hover:to-green-700 hover:scale-[1.02] transition-all duration-200"
+    >
+      Start New Entry
+    </Button>
+  </div>
+</motion.div>
       ) : bookingConfirmation ? (
         // Appointment Booking Success Message
         <motion.div
@@ -1071,7 +1118,7 @@ export default function BookingClient({
                               >
                                 <CollapsibleTrigger asChild>
                                   <div className="flex items-center justify-between px-4 py-3 cursor-pointer bg-muted/20 hover:bg-muted/40 transition-colors rounded-t-lg">
-                                    <h3 className="text-base md:text-lg font-bold text-gray-700 dark:text-gray-300">{category}</h3>
+                                    <h3 className="text-base md:text-lg font-bold text-gray-700">{category}</h3>
                                     <ChevronDown className="h-5 w-5 text-gray-500 ui-open:rotate-180 transition-transform" />
                                   </div>
                                 </CollapsibleTrigger>
@@ -1143,96 +1190,132 @@ export default function BookingClient({
 
               {/* Conditional Step 2 for QUEUE: Select Staff */}
               {mode === "queue" && currentStep >= 2 && (
-                <motion.div ref={barberRef} className="space-y-6" variants={fadeInUp}>
-                  <Card className="p-6 shadow-lg">
-                    <CardHeader className="p-0 mb-4">
-                      <CardTitle className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                        <User className="h-6 w-6 text-primary" /> 2. Choose Your Barber
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      {staffMembers.length > 0 ? (
-                        <motion.div
-                          className="grid grid-cols-2 md:grid-cols-3 gap-4"
-                          variants={staggerContainer}
-                        >
-                          {staffMembers.map((barber) => {
-                            const waitingCount = waitingCounts[barber.id] || 0;
-                            const waitTime = waitTimes[barber.id] || 0;
-                            return (
-                              <motion.div
-                                key={barber.id}
-                                variants={fadeIn}
-                                className="relative"
-                              >
-                                {barber.is_on_break && (
-                                  <div className="absolute inset-0 bg-black/60 rounded-lg z-10 flex items-center justify-center backdrop-blur-sm">
-                                    <Badge variant="destructive" className="text-lg px-4 py-2">ON BREAK</Badge>
-                                  </div>
-                                )}
-                                <Card
-                                  className={`cursor-pointer transition-all h-full bg-card border-2 hover:border-primary/80 ${selectedBarber?.id === barber.id ? "border-primary ring-2 ring-primary/50 shadow-md" : "border-border"}`}
-                                  onClick={() =>
-                                    !barber.is_on_break && setSelectedBarber(barber)
-                                  }
-                                >
-                                  <CardContent className="flex flex-col items-center justify-center p-4 gap-2 text-center">
-                                    <Avatar className="w-20 h-20 md:w-24 md:h-24 border-2 border-primary/50 shadow-sm">
-                                      <AvatarImage
-                                        src={barber.avatar_url || undefined}
-                                        alt={barber.name}
-                                      />
-                                      <AvatarFallback className="text-lg md:text-xl font-bold bg-primary/20 text-primary-foreground">
-                                        {barber.name
-                                          .split(" ")
-                                          .map((n) => n?.[0])
-                                          .join("")}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <p className="font-semibold text-base md:text-lg mt-2">{barber.name}</p>
-                                    <Badge
-                                      variant={
-                                        waitingCount > 0 ? "default" : "secondary"
-                                      }
-                                      className="mt-1 text-sm py-1 px-3 transition-colors"
-                                    >
-                                      {waitingCount} waiting
-                                    </Badge>
-                                    {waitTime > 0 && (
-                                      <div className="flex items-center justify-center gap-1 text-xs md:text-sm text-muted-foreground mt-1.5">
-                                        <Timer className="h-4 w-4" />~{waitTime} min wait
-                                      </div>
-                                    )}
-                                  </CardContent>
-                                </Card>
-                              </motion.div>
-                            );
-                          })}
-                        </motion.div>
-                      ) : (
-                        <div className="text-center p-8 border-2 border-dashed rounded-lg text-muted-foreground text-lg">
-                          No staff members available for walk-ins right now.
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                  {/* Next Step Button for Staff (Queue) */}
-                  <div className="flex justify-center mt-6">
-                    <motion.div
-                      className="cursor-pointer p-3 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                      whileHover={{ scale: 1.1 }}
-                      initial={{ y: 0 }}
-                      animate={selectedBarber ? { y: [0, 5, 0] } : {}}
-                      transition={selectedBarber ? { repeat: Infinity, duration: 1.5, ease: "easeInOut" } : {}}
-                      onClick={() => handleNextStepClick(currentStep + 1, detailsRef)} // Always go to details ref next for queue
-                      style={{ opacity: selectedBarber ? 1 : 0.5, pointerEvents: selectedBarber ? 'auto' : 'none' }}
-                      title={selectedBarber ? "Next Step" : "Select a barber to continue"}
+  <motion.div ref={barberRef} className="space-y-6" variants={fadeInUp}>
+    <Card className="p-6 shadow-lg">
+      <CardHeader className="p-0 mb-4">
+        <CardTitle className="text-xl md:text-2xl font-bold flex items-center gap-2">
+          <User className="h-6 w-6 text-primary" /> 2. Choose Your Barber
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {staffMembers.length > 0 ? (
+          <>
+            {/* Updated "Any Barber" button styling */}
+            <div className="mb-6 flex justify-center">
+              <Button
+                type="button"
+                // Using a custom class for gradient and hover effects
+                className="px-6 py-3 text-base md:text-lg font-semibold rounded-xl text-white
+                           bg-gradient-to-r from-purple-600 to-indigo-700
+                           shadow-md hover:from-purple-700 hover:to-indigo-800
+                           transition-all duration-300 transform hover:scale-105
+                           flex items-center justify-center gap-2" // Added flex for icon + text
+                onClick={() => {
+                  const availableBarbers = staffMembers.filter(b => !b.is_on_break);
+                  if (availableBarbers.length > 0) {
+                    const bestBarber = availableBarbers.sort((a, b) => {
+                      const aWaitTime = waitTimes[a.id] || 0;
+                      const bWaitTime = waitTimes[b.id] || 0;
+                      if (aWaitTime !== bWaitTime) {
+                        return aWaitTime - bWaitTime;
+                      }
+                      const aWaitingCount = waitingCounts[a.id] || 0;
+                      const bWaitingCount = waitingCounts[b.id] || 0;
+                      return aWaitingCount - bWaitingCount;
+                    })[0];
+                    setSelectedBarber(bestBarber);
+                  } else {
+                    alert("No barbers available right now. Please try again later.");
+                  }
+                }}
+              >
+                <Shuffle className="h-5 w-5" /> {/* Add a suitable icon */}
+                <span>Choose Any Available Barber</span>
+              </Button>
+            </div>
+
+            <motion.div
+              className="grid grid-cols-2 md:grid-cols-3 gap-4"
+              variants={staggerContainer}
+            >
+              {staffMembers.map((barber) => {
+                const waitingCount = waitingCounts[barber.id] || 0;
+                const waitTime = waitTimes[barber.id] || 0;
+                return (
+                  <motion.div
+                    key={barber.id}
+                    variants={fadeIn}
+                    className="relative"
+                  >
+                    {barber.is_on_break && (
+                      <div className="absolute inset-0 bg-black/60 rounded-lg z-10 flex items-center justify-center backdrop-blur-sm">
+                        <Badge variant="destructive" className="text-lg px-4 py-2">ON BREAK</Badge>
+                      </div>
+                    )}
+                    <Card
+                      className={`cursor-pointer transition-all h-full bg-card border-2 hover:border-primary/80 ${selectedBarber?.id === barber.id ? "border-primary ring-2 ring-primary/50 shadow-md" : "border-border"}`}
+                      onClick={() =>
+                        !barber.is_on_break && setSelectedBarber(barber)
+                      }
                     >
-                      <ChevronDown className="h-8 w-8" />
-                    </motion.div>
-                  </div>
-                </motion.div>
-              )}
+                      <CardContent className="flex flex-col items-center justify-center p-4 gap-2 text-center">
+                        <Avatar className="w-20 h-20 md:w-24 md:h-24 border-2 border-primary/50 shadow-sm">
+                          <AvatarImage
+                            src={barber.avatar_url || undefined}
+                            alt={barber.name}
+                          />
+                          <AvatarFallback className="text-lg md:text-xl font-bold bg-primary/20 text-primary-foreground">
+                            {barber.name
+                              .split(" ")
+                              .map((n) => n?.[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <p className="font-semibold text-base md:text-lg mt-2">{barber.name}</p>
+                        <Badge
+                          variant={
+                            waitingCount > 0 ? "default" : "secondary"
+                          }
+                          className="mt-1 text-sm py-1 px-3 transition-colors"
+                        >
+                          {waitingCount} waiting
+                        </Badge>
+                        {waitTime > 0 && (
+                          <div className="flex items-center justify-center gap-1 text-xs md:text-sm text-muted-foreground mt-1.5">
+                            <Timer className="h-4 w-4" />~{waitTime} min wait
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          </>
+        ) : (
+          <div className="text-center p-8 border-2 border-dashed rounded-lg text-muted-foreground text-lg">
+            No staff members available for walk-ins right now.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+    {/* Next Step Button for Staff (Queue) */}
+    <div className="flex justify-center mt-6">
+      <motion.div
+        className="cursor-pointer p-3 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+        whileHover={{ scale: 1.1 }}
+        initial={{ y: 0 }}
+        animate={selectedBarber ? { y: [0, 5, 0] } : {}}
+        transition={selectedBarber ? { repeat: Infinity, duration: 1.5, ease: "easeInOut" } : {}}
+        onClick={() => handleNextStepClick(currentStep + 1, detailsRef)}
+        style={{ opacity: selectedBarber ? 1 : 0.5, pointerEvents: selectedBarber ? 'auto' : 'none' }}
+        title={selectedBarber ? "Next Step" : "Select a barber to continue"}
+      >
+        <ChevronDown className="h-8 w-8" />
+      </motion.div>
+    </div>
+  </motion.div>
+)}
 
               {/* Conditional Step 2 for APPOINTMENT: Select Staff */}
               {mode === "appointment" && currentStep >= 2 && (
@@ -1316,7 +1399,6 @@ export default function BookingClient({
               )}
 
 
-              {/* Conditional Step 3 for APPOINTMENT: Select Date & Time */}
               {mode === "appointment" && currentStep >= 3 && selectedBarber && ( // Only show if barber is selected
                 <motion.div ref={dateTimeRef} className="space-y-6" variants={fadeInUp}>
                   <Card className="p-6 shadow-lg">
@@ -1380,7 +1462,11 @@ export default function BookingClient({
                                         ? "default"
                                         : "outline"
                                     }
-                                    onClick={() => setSelectedSlot(slot)}
+                                    onClick={() => {
+                                      setSelectedSlot(slot);
+                                      // IMPORTANT CHANGE: Automatically advance to step 4 (Your Details)
+                                      handleNextStepClick(4, detailsRef);
+                                    }}
                                     className="flex flex-col h-auto items-center p-2 text-center text-xs md:text-sm transition-colors"
                                   >
                                     <span className="font-medium">{slot.time}</span>
@@ -1402,66 +1488,72 @@ export default function BookingClient({
                       </div>
                     </CardContent>
                   </Card>
-                  {/* Next Step Button for Date & Time (Appointment) */}
-                  
+                  {/* REMOVED: Next Step Button for Date & Time (Appointment) */}
+                  {/* The motion.div with ChevronDown icon is removed from here */}
                 </motion.div>
               )}
 
               {/* Step 3 (for queue) or 4 (for appointment): Your Details (Common to both modes) */}
               {((mode === "queue" && currentStep >= 3 && selectedBarber) || (mode === "appointment" && currentStep >= 4 && selectedSlot)) && (
-                <motion.div ref={detailsRef} className="space-y-6" variants={fadeInUp}>
-                  <Card className="p-6 shadow-lg">
-                    <CardHeader className="p-0 mb-4">
-                      <CardTitle className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                        <User className="h-6 w-6 text-primary" /> {mode === "queue" ? "3. Your Details" : "4. Your Details"}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="client-name" className="font-medium">Your Name</Label>
-                          <Input
-                            id="client-name"
-                            placeholder="e.g., Jane Doe"
-                            value={clientName}
-                            onChange={(e) => setClientName(e.target.value)}
-                            required
-                            className="p-2"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="client-phone" className="font-medium">Your Phone</Label>
-                          <div className="relative">
-                            <Input
-                              id="client-phone"
-                              type="tel"
-                              placeholder="e.g., 0412 345 678"
-                              value={clientPhone}
-                              onChange={(e) => setClientPhone(e.target.value)}
-                              required
-                              className="p-2 pl-10"
-                            />
-                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          </div>
-                          {!isValidAustralianPhone(clientPhone) && clientPhone.length > 0 && (
-                            <p className="text-sm text-destructive mt-1">
-                              Please enter a valid 10-digit Australian phone number.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+  <motion.div ref={detailsRef} className="space-y-6" variants={fadeInUp}>
+    <Card className="p-6 shadow-lg">
+      <CardHeader className="p-0 mb-4">
+        <CardTitle className="text-xl md:text-2xl font-bold flex items-center gap-2">
+          <User className="h-6 w-6 text-primary" /> {mode === "queue" ? "3. Your Details" : "4. Your Details"}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="client-name" className="font-medium text-gray-700">Your Name</Label> {/* Enhanced label color */}
+            <Input
+              id="client-name"
+              placeholder="e.g., Jane Doe"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              required
+              // Enhanced Input Field Styling
+              className="p-2 border border-input bg-background rounded-md shadow-sm
+                         focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none
+                         transition-all duration-200 text-base" // Added text-base for consistency
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="client-phone" className="font-medium text-gray-700">Your Phone</Label> {/* Enhanced label color */}
+            <div className="relative">
+              <Input
+                id="client-phone"
+                type="tel"
+                placeholder="e.g., 0412 345 678"
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                required
+                // Enhanced Input Field Styling (same as above)
+                className="p-2 pl-10 border border-input bg-background rounded-md shadow-sm
+                           focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none
+                           transition-all duration-200 text-base"
+              />
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            </div>
+            {!isValidAustralianPhone(clientPhone) && clientPhone.length > 0 && (
+              <p className="text-sm text-destructive mt-1">
+                Please enter a valid 10-digit Australian phone number.
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
                   {/* Submit Button (Changes based on mode) */}
                   <motion.div variants={fadeIn} className="mt-10 flex justify-center">
                     <Button
   type="submit"
   size="lg"
   className={`px-6 py-3 text-lg md:text-xl font-semibold text-white
-    bg-gradient-to-r from-[#33001b] to-[#ff0084]
+    bg-gradient-to-r from-emerald-500 to-green-600 // Changed to green gradient
 
     transition-all duration-300 transform hover:scale-105
-    shadow-lg ring-2 ring-[#ff0084]/50 rounded-xl
+    shadow-lg ring-2 ring-emerald-500/50 rounded-xl // Updated ring color
   `}
   disabled={
     loading ||
@@ -1496,6 +1588,9 @@ export default function BookingClient({
           )}
         </>
       )}
+      <footer className="mt-16 py-6 text-center text-gray-300 text-2xl font-bold"> {/* Changed text-2xl to text-3xl for bigger, removed text-primary */}
+  <p>WaitWise</p>
+</footer>
     </div>
   );
 }
