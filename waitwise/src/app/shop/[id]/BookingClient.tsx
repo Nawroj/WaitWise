@@ -46,8 +46,7 @@ import {
   Timer,
   ChevronDown,
   CalendarDays,
-  Loader2,
-  CheckCircle2, // Added for success messages
+  Loader2, // Added for success messages
   ListChecks, // Icon for services
   User, // Icon for staff/barber
   Phone, // Icon for phone number
