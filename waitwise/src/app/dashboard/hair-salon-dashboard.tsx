@@ -67,7 +67,9 @@ import {
   PauseCircle, // Added for break icon
   ChevronDown, // Added for collapsible
   CalendarCheck, // Added for appointment check-in icon
-  XCircle, // Added for cancel appointment icon
+  XCircle,
+  ChevronLeft,
+  ChevronRight // Added for cancel appointment icon
 } from "lucide-react";
 import {
   Avatar,
@@ -2395,117 +2397,152 @@ const barberHasInProgress = queueEntries.some(
                   );
                 })}
 </motion.div>
+              
+
               {/* Completed and No-Show Lists */}
               <motion.div
                 initial="initial"
                 animate="animate"
                 variants={staggerContainer}
-                className="mt-8 grid gap-8 grid-cols-1 lg:grid-cols-2 xl:col-span-3"
+                className="mt-8 relative"
               >
-                <motion.div variants={fadeIn}>
-                  <Card className="bg-card border-border">
-                    <CardHeader>
-                      <CardTitle>Completed Today</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {visibleCompletedList.length > 0 ? (
-                        <div className="space-y-4">
-                          {visibleCompletedList.map((entry, index) => (
-                            <motion.div
-                              key={entry.id}
-                              variants={fadeIn}
-                              className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/20"
-                            >
-                              <p>
-                                {index + 1}. {entry.client_name}{" "}
-                                <span className="text-muted-foreground">
-                                  with {entry.barbers?.name || "N/A"}
-                                </span>
-                              </p>
-                              <Badge variant={"default"}>Done</Badge>
-                            </motion.div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-center text-muted-foreground">
-                          No clients have been marked as done yet.
-                        </p>
-                      )}
-                      {fullCompletedList.length > 5 && !showAllCompleted && (
-                        <Button
-                          variant="link"
-                          className="w-full mt-4 hover:text-primary"
-                          onClick={() => setShowAllCompleted(true)}
-                        >
-                          See all {fullCompletedList.length}
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-                <motion.div variants={fadeIn}>
-                  <Card className="bg-card border-border">
-                    <CardHeader>
-                      <CardTitle>No-Shows</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {visibleNoShowList.length > 0 ? (
-                        <div className="space-y-4">
-                          {visibleNoShowList.map((entry, index) => (
-                            <motion.div
-                              key={entry.id}
-                              variants={fadeIn}
-                              className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/20"
-                            >
-                              <p>
-                                {index + 1}. {entry.client_name}{" "}
-                                <span className="text-muted-foreground">
-                                  with {entry.barbers?.name || "N/A"}
-                                </span>
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={"secondary"}>No Show</Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 hover:text-primary"
-                                  title="Re-queue Client"
-                                  onClick={() => handleRequeue(entry)}
-                                >
-                                  <RefreshCw className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 hover:text-destructive"
-                                  title="Delete Entry"
-                                  onClick={() =>
-                                    handleDeleteFromQueue(entry.id)
-                                  }
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-center text-muted-foreground">
-                          No clients have been marked as a no-show.
-                        </p>
-                      )}
-                      {fullNoShowList.length > 5 && !showAllNoShows && (
-                        <Button
-                          variant="link"
-                          className="w-full mt-4 hover:text-primary"
-                          onClick={() => setShowAllNoShows(true)}
-                        >
-                          See all {fullNoShowList.length}
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                {/* Main scrollable container for the cards */}
+                <div
+                  id="daily-summary-cards"
+                  className="flex overflow-x-auto gap-4 pb-4 no-scrollbar lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-8 lg:pb-0"
+                >
+                  {/* No-Shows Card - NOW FIRST */}
+                  <motion.div variants={fadeIn} className="flex-shrink-0 w-full min-w-[280px] sm:min-w-[300px]">
+                    <Card className="h-full bg-card border-border text-foreground shadow-sm">
+                      <CardHeader>
+                        <CardTitle>No-Shows</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {visibleNoShowList.length > 0 ? (
+                          <div className="space-y-2">
+                            {visibleNoShowList.map((entry, index) => (
+                              <motion.div
+                                key={entry.id}
+                                variants={fadeIn}
+                                className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/20 border border-border"
+                              >
+                                <p>
+                                  {index + 1}. {entry.client_name}{" "}
+                                  <span className="text-muted-foreground">
+                                    with {entry.barbers?.name || "N/A"}
+                                  </span>
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={"secondary"}>No Show</Badge>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 hover:text-primary"
+                                    title="Re-queue Client"
+                                    onClick={() => handleRequeue(entry)}
+                                  >
+                                    <RefreshCw className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 hover:text-destructive"
+                                    title="Delete Entry"
+                                    onClick={() =>
+                                      handleDeleteFromQueue(entry.id)
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-center text-muted-foreground py-4">
+                            No clients have been marked as a no-show.
+                          </p>
+                        )}
+                        {fullNoShowList.length > 5 && !showAllNoShows && (
+                          <Button
+                            variant="link"
+                            className="w-full mt-4 hover:text-primary"
+                            onClick={() => setShowAllNoShows(true)}
+                          >
+                            See all {fullNoShowList.length}
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+
+                  {/* Completed Today Card - NOW SECOND */}
+                  <motion.div variants={fadeIn} className="flex-shrink-0 w-full min-w-[280px] sm:min-w-[300px]">
+                    <Card className="h-full bg-card border-border text-foreground shadow-sm">
+                      <CardHeader>
+                        <CardTitle>Completed Today</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {visibleCompletedList.length > 0 ? (
+                          <div className="space-y-2">
+                            {visibleCompletedList.map((entry, index) => (
+                              <motion.div
+                                key={entry.id}
+                                variants={fadeIn}
+                                className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/20 border border-border"
+                              >
+                                <p>
+                                  {index + 1}. {entry.client_name}{" "}
+                                  <span className="text-muted-foreground">
+                                    with {entry.barbers?.name || "N/A"}
+                                  </span>
+                                </p>
+                                <Badge variant={"default"}>Done</Badge>
+                              </motion.div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-center text-muted-foreground py-4">
+                            No clients have been marked as done yet.
+                          </p>
+                        )}
+                        {fullCompletedList.length > 5 && !showAllCompleted && (
+                          <Button
+                            variant="link"
+                            className="w-full mt-4 hover:text-primary"
+                            onClick={() => setShowAllCompleted(true)}
+                          >
+                            See all {fullCompletedList.length}
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </div>
+
+                {/* Navigation Arrows moved to the bottom, centered, and hidden on larger screens */}
+                <div className="flex justify-center gap-2 mt-4 lg:hidden">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={() => {
+                      document.getElementById('daily-summary-cards')?.scrollBy({ left: -300, behavior: 'smooth' });
+                    }}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={() => {
+                      document.getElementById('daily-summary-cards')?.scrollBy({ left: 300, behavior: 'smooth' });
+                    }}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </motion.div>
               
             </>

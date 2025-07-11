@@ -2,21 +2,21 @@
 "use client";
 
 import { useState, useEffect, useMemo} from "react";
-import Image from "next/image"; // Import Image for the shop logo
-import { createClient } from "../../../lib/supabase/client"; // Adjust path as needed
+import Image from "next/image";
+import { createClient } from "../../../lib/supabase/client";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from "../../../components/ui/card"; // Adjust path as needed
+} from "../../../components/ui/card";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../../components/ui/select"; // Adjust path as needed
+} from "../../../components/ui/select";
 import {
   BarChart,
   Bar,
@@ -30,7 +30,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { Loader2} from "lucide-react"; // Import Store icon for placeholder
+import { Loader2} from "lucide-react";
 import { toast } from "sonner";
 import { motion, easeInOut } from "framer-motion";
 
@@ -52,9 +52,9 @@ const staggerContainer = {
 type Shop = {
   id: string;
   name: string;
-  logo_url: string | null; // Ensure logo_url is available in Shop type
-  address: string; // Include address if displayed
-  owner_id: string; // Include owner_id as it's used for fetching
+  logo_url: string | null;
+  address: string;
+  owner_id: string;
   // ... include other shop properties if needed by analytics (e.g., subscription_status)
 };
 
@@ -78,13 +78,14 @@ export default function AnalyticsPage() {
   const supabase = createClient();
 
   const [shop, setShop] = useState<Shop | null>(null);
-  const [barbers] = useState<Barber[]>([]); // Needed for barberColorMap
+  // >>> Change 1: Initialize barbers with an empty array, but it will be updated
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [analyticsRange, setAnalyticsRange] = useState("today");
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchUserShopAndData() {
+    async function fetchUserShopAndBarbers() { // Renamed for clarity
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -105,9 +106,23 @@ export default function AnalyticsPage() {
       }
       setShop(shopData);
 
-      
+      // >>> Change 2: Fetch barbers data
+      const { data: barbersData, error: barbersError } = await supabase
+        .from("barbers")
+        .select("*")
+        .eq("shop_id", shopData.id) // Ensure you filter by the fetched shop ID
+        .order("created_at"); // Or by name, etc.
+
+      if (barbersError) {
+        console.error("Error fetching barbers for analytics:", barbersError);
+        toast.error("Failed to load staff data for analytics.");
+      } else {
+        setBarbers(barbersData as Barber[]);
+      }
+      // You might want a single loading state for everything, or handle it more granularly
+      // setIsAnalyticsLoading(false); // This will be handled by the next useEffect
     }
-    fetchUserShopAndData();
+    fetchUserShopAndBarbers();
   }, [supabase]);
 
   // Fetches analytics data based on selected range and shop ID
@@ -170,19 +185,19 @@ export default function AnalyticsPage() {
       "#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40",
     ];
     const map: { [key: string]: string } = {};
+    // >>> Change 3: Ensure barbers array is populated before trying to map colors
     barbers.forEach((barber, index) => {
       map[barber.name] = VIBRANT_COLORS[index % VIBRANT_COLORS.length];
     });
     return map;
-  }, [barbers]);
+  }, [barbers]); // This dependency is now correctly tracking the fetched 'barbers' state
 
 
-  if (!shop) {
-    // Or a proper loading state for the shop
+  if (!shop || isAnalyticsLoading) { // Combined loading check for initial shop AND analytics data
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2 text-primary">Loading shop data...</p>
+        <p className="ml-2 text-primary">Loading analytics...</p>
       </div>
     );
   }
@@ -257,7 +272,7 @@ export default function AnalyticsPage() {
                     <CardTitle className="text-sm font-semibold text-blue-800">Total Revenue</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0 flex items-center justify-end flex-grow">
-                    <p className="text-xl font-bold text-blue-900">
+                    <p className="text-xl sm:text-lg md:text-xl font-bold text-blue-900">
                       ${(analyticsData.totalRevenue || 0).toFixed(2)}
                     </p>
                   </CardContent>
@@ -270,7 +285,7 @@ export default function AnalyticsPage() {
                     <CardTitle className="text-sm font-semibold text-green-800">Served</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0 flex items-center justify-end flex-grow">
-                    <p className="text-xl font-bold text-green-900">
+                    <p className="text-xl sm:text-lg md:text-xl font-bold text-green-900">
                       {analyticsData.totalCustomers || 0}
                     </p>
                   </CardContent>
@@ -283,7 +298,7 @@ export default function AnalyticsPage() {
                     <CardTitle className="text-sm font-semibold text-red-800">No-Show Rate</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0 flex items-center justify-end flex-grow">
-                    <p className="text-xl font-bold text-red-900">
+                    <p className="text-xl sm:text-lg md:text-xl font-bold text-red-900">
                       {(analyticsData.noShowRate || 0).toFixed(1)}%
                     </p>
                   </CardContent>
@@ -329,9 +344,10 @@ export default function AnalyticsPage() {
                             (entry: { name: string }) => (
                               <Cell
                                 key={`cell-${entry.name}`}
+                                // This is where the color from the map is applied
                                 fill={
                                   barberColorMap[entry.name] ||
-                                  "#8884d8"
+                                  "#8884d8" // Fallback color
                                 }
                               />
                             ),
@@ -356,7 +372,7 @@ export default function AnalyticsPage() {
                           cy="50%"
                           innerRadius={50}
                           outerRadius={90}
-                          fill="#8884d8"
+                          fill="#8884d8" // This fill is for the entire pie by default, but cells override it
                           paddingAngle={5}
                           dataKey="clients"
                           nameKey="name"
@@ -368,9 +384,10 @@ export default function AnalyticsPage() {
                             (entry: { name: string }) => (
                               <Cell
                                 key={`cell-${entry.name}`}
+                                // This is where the color from the map is applied
                                 fill={
                                   barberColorMap[entry.name] ||
-                                  "#8884d8"
+                                  "#8884d8" // Fallback color
                                 }
                               />
                             ),

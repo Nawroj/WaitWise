@@ -914,48 +914,43 @@ export default function BookingClient({
       ) : bookingConfirmation ? (
         // Appointment Booking Success Message
         <motion.div
-          variants={fadeIn}
-          initial="initial"
-          animate="animate"
-          className="mt-8"
-        >
-          <Alert className="mt-8 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-center p-6 shadow-md">
-  <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600 dark:text-emerald-400 mb-3" />
-  <AlertTitle className="text-emerald-800 dark:text-emerald-300 text-xl md:text-2xl font-bold mb-2">
-    Appointment Booked!
-  </AlertTitle>
-  <AlertDescription className="mt-4 text-emerald-700 dark:text-emerald-400 space-y-4 text-base md:text-lg flex flex-col items-center justify-center text-center max-w-xl mx-auto">
-    <p>
-      Thanks,{" "}
-      <strong className="text-emerald-900 dark:text-emerald-200">{bookingConfirmation.clientName}</strong>! Your appointment for{" "}
-      <br />
-      <strong className="text-emerald-900 dark:text-emerald-200 text-lg md:text-xl">
-        {bookingConfirmation.dateTime}
-      </strong>{" "}
-      with{" "}
-      <strong className="text-emerald-900 dark:text-emerald-200">
-        {bookingConfirmation.barberName}
-      </strong>{" "}
-      is confirmed.
-    </p>
-    <p className="text-sm md:text-base text-emerald-600 dark:text-emerald-500">
-      We look forward to seeing you!
-    </p>
-    <div className="flex justify-center mt-4">
-      <Button
-  onClick={resetForm}
-  className="px-6 py-3 text-base md:text-lg text-white font-semibold rounded-md
-             bg-gradient-to-r from-emerald-500 to-emerald-700
-             hover:from-emerald-600 hover:to-emerald-800
-             transition-colors duration-300 shadow-md"
+  variants={fadeIn}
+  initial="initial"
+  animate="animate"
+  className="mt-8"
 >
-  Book Another Appointment
-</Button>
-    </div>
-  </AlertDescription>
-</Alert>
-
-        </motion.div>
+  <Alert className="mt-6 bg-green-100 border-green-300 text-center p-6 shadow-lg rounded-xl animate-fade-in animate-once">
+    <AlertTitle className="text-green-900 text-xl font-bold mb-2">
+      Appointment Booked!
+    </AlertTitle>
+    <AlertDescription className="flex flex-col items-center text-center w-full text-green-700 text-base space-y-2">
+      <p>
+        Thanks,{" "}
+        <strong className="text-green-900">{bookingConfirmation.clientName}</strong>! Your appointment for{" "}
+        <br />
+        <strong className="text-green-900 text-lg">
+          {bookingConfirmation.dateTime}
+        </strong>{" "}
+        with{" "}
+        <strong className="text-green-900">
+          {bookingConfirmation.barberName}
+        </strong>{" "}
+        is confirmed.
+      </p>
+      <p className="text-sm text-green-600">
+        We look forward to seeing you!
+      </p>
+      <div className="mt-3 w-full flex justify-center">
+        <Button
+          onClick={resetForm}
+          className="px-6 py-3 text-base font-semibold rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-md hover:from-emerald-600 hover:to-green-700 hover:scale-[1.02] transition-all duration-200"
+        >
+          Book Another Appointment
+        </Button>
+      </div>
+    </AlertDescription>
+  </Alert>
+</motion.div>
       ) : (
         // Main Content: Mode Selection & Dynamic Form
         <>
