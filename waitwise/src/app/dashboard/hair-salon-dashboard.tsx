@@ -163,13 +163,6 @@ type Barber = {
   is_on_break: boolean;
   break_end_time: string | null;
 };
-type AnalyticsData = {
-  totalRevenue: number;
-  totalCustomers: number;
-  noShowRate: number;
-  barberRevenueData: { name: string; revenue: number }[];
-  barberClientData: { name: string; clients: number }[];
-};
 type EditSection = "details" | "services" | "staff" | "qr";
 type Invoice = {
   id: string;
@@ -565,22 +558,7 @@ export default function DashboardPage() {
 }, [services]); // Dependency on the 'services' state
 
 
-  // Memoized color map for barbers in charts
-  const barberColorMap = useMemo(() => {
-    const VIBRANT_COLORS = [
-      "#FF6384",
-      "#36A2EB",
-      "#FFCE56",
-      "#4BC0C0",
-      "#9966FF",
-      "#FF9F40",
-    ];
-    const map: { [key: string]: string } = {};
-    barbers.forEach((barber, index) => {
-      map[barber.name] = VIBRANT_COLORS[index % VIBRANT_COLORS.length];
-    });
-    return map;
-  }, [barbers]);
+  
 
   // Memoized list of barbers who are marked as working today
   const workingBarbers = useMemo(

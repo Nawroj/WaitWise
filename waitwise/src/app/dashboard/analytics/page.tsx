@@ -57,14 +57,7 @@ type Shop = {
   owner_id: string; // Include owner_id as it's used for fetching
   // ... include other shop properties if needed by analytics (e.g., subscription_status)
 };
-type Service = {
-  id: string;
-  name: string;
-  price: number;
-  duration_minutes: number;
-  category: string | null;
-  description: string | null;
-};
+
 type Barber = {
   id: string;
   name: string;
@@ -90,7 +83,6 @@ export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
 
-  // Fetch current user's shop and other static data like barbers/services
   useEffect(() => {
     async function fetchUserShopAndData() {
       const {
@@ -113,12 +105,7 @@ export default function AnalyticsPage() {
       }
       setShop(shopData);
 
-      // Fetch services and barbers as they are dependencies for barberColorMap
-      const [{ data: servicesData }, { data: barbersData }] = await Promise.all([
-        supabase.from("services").select("*").eq("shop_id", shopData.id).order("created_at"),
-        supabase.from("barbers").select("*").eq("shop_id", shopData.id).order("created_at"),
-      ]);
-      setBarbers(barbersData as Barber[] || []);
+      
     }
     fetchUserShopAndData();
   }, [supabase]);
