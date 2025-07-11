@@ -78,7 +78,7 @@ export default function AnalyticsPage() {
   const supabase = createClient();
 
   const [shop, setShop] = useState<Shop | null>(null);
-  const [barbers, setBarbers] = useState<Barber[]>([]); // Needed for barberColorMap
+  const [barbers] = useState<Barber[]>([]); // Needed for barberColorMap
   const [analyticsRange, setAnalyticsRange] = useState("today");
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
