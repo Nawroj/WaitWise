@@ -1,7 +1,7 @@
 // app/dashboard/analytics/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo} from "react";
 import Image from "next/image"; // Import Image for the shop logo
 import { createClient } from "../../../lib/supabase/client"; // Adjust path as needed
 import {
@@ -30,7 +30,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { Loader2, Store } from "lucide-react"; // Import Store icon for placeholder
+import { Loader2} from "lucide-react"; // Import Store icon for placeholder
 import { toast } from "sonner";
 import { motion, easeInOut } from "framer-motion";
 
@@ -85,7 +85,6 @@ export default function AnalyticsPage() {
   const supabase = createClient();
 
   const [shop, setShop] = useState<Shop | null>(null);
-  const [services, setServices] = useState<Service[]>([]); // Needed for barberColorMap dependency, even if not directly displayed
   const [barbers, setBarbers] = useState<Barber[]>([]); // Needed for barberColorMap
   const [analyticsRange, setAnalyticsRange] = useState("today");
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -119,7 +118,6 @@ export default function AnalyticsPage() {
         supabase.from("services").select("*").eq("shop_id", shopData.id).order("created_at"),
         supabase.from("barbers").select("*").eq("shop_id", shopData.id).order("created_at"),
       ]);
-      setServices(servicesData as Service[] || []);
       setBarbers(barbersData as Barber[] || []);
     }
     fetchUserShopAndData();

@@ -62,7 +62,6 @@ import {
   UserPlus,
   MoreVertical,
   Loader2,
-  Settings,
   Store,
   Users,
   PauseCircle, // Added for break icon
@@ -75,19 +74,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "../../components/ui/avatar";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
 import QRCode from "qrcode";
 import { toast } from "sonner";
 import { Switch } from "../../components/ui/switch";
@@ -116,13 +102,6 @@ const staggerContainer = {
   },
 };
 
-const cardHover = {
-  hover: {
-    scale: 1.01,
-    boxShadow: "0px 5px 15px rgba(0, 0, 0, 0.1)",
-    transition: { duration: 0.2 },
-  },
-};
 
 // Type definitions
 type QueueEntry = {
@@ -260,11 +239,6 @@ export default function DashboardPage() {
   const [billingEmail, setBillingEmail] = useState("");
   const [isEmailPromptVisible, setIsEmailPromptVisible] = useState(false);
   const [failedInvoice, setFailedInvoice] = useState<Invoice | null>(null);
-  const [analyticsRange, setAnalyticsRange] = useState("today");
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
-    null,
-  );
-  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
   const stripePromise = loadStripe(
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
   );
@@ -460,54 +434,7 @@ export default function DashboardPage() {
     }
   }, [shop, supabase]);
 
-  // Fetches analytics data based on selected range
-  useEffect(() => {
-    if (!shop) return;
-    const fetchAnalytics = async () => {
-      setIsAnalyticsLoading(true);
-      const today = new Date();
-      let startDate;
-      const endDate = new Date();
-
-      switch (analyticsRange) {
-        case "week":
-          startDate = new Date(new Date().setDate(today.getDate() - 7));
-          break;
-        case "month":
-          startDate = new Date(new Date().setMonth(today.getMonth() - 1));
-          break;
-        case "all_time":
-          startDate = new Date(0);
-          break;
-        case "today":
-        default:
-          startDate = new Date(new Date().setHours(0, 0, 0, 0));
-          break;
-      }
-
-      try {
-        const { data, error } = await supabase.functions.invoke(
-          "get-analytics-data",
-          {
-            body: {
-              shop_id: shop.id,
-              startDate: startDate.toISOString(),
-              endDate: endDate.toISOString(),
-            },
-          },
-        );
-
-        if (error) throw error;
-        setAnalyticsData(data);
-      } catch (error) {
-        toast.error("Failed to load analytics data.");
-        console.error("Analytics error:", error);
-      } finally {
-        setIsAnalyticsLoading(false);
-      }
-    };
-    fetchAnalytics();
-  }, [shop, analyticsRange, supabase]);
+  
 
   // Real-time subscriptions for queue, barbers, services, AND appointments updates
   useEffect(() => {
