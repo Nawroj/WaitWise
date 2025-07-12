@@ -132,7 +132,7 @@ export default function PricingPage() {
           {/* Pricing Cards Section */}
           <motion.div className="grid grid-cols-1 md:grid-cols-2 gap-8" variants={staggerContainer}>
             {/* Map through tiers to render each pricing card */}
-            {tiers.map((tier, index) => (
+            {tiers.map((tier) => (
               <motion.div key={tier.name} variants={fadeIn}> {/* Added motion.div for individual card animation */}
                 <Card
                   className={`flex flex-col h-full ${tier.name === "Pay-as-you-go" ? "border-primary shadow-lg" : "border border-border shadow-sm"} bg-background hover:bg-gray-50 transition-colors duration-300`} // Added styling for cards
