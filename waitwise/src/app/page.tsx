@@ -94,28 +94,21 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
   // Reference to the video element for controlling playback
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Effect to load and attempt to play the video when videoSrc changes or isActive changes
-  // Video should play only when it is the active card
+  // Effect to load and attempt to play the video when videoSrc changes or component mounts
   useEffect(() => {
     if (videoRef.current) {
-      if (isActive) {
-        videoRef.current.load(); // Reload the video source
-        videoRef.current.play().catch((error) => {
-          // Catch and log autoplay errors (browsers often prevent autoplay without user interaction)
-          console.warn(`Autoplay prevented for ${demo.title}:`, error);
-        });
-      } else {
-        // Pause and reset video if it's no longer the active card
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      }
+      videoRef.current.load(); // Always load the video when its source changes or on mount
+      videoRef.current.play().catch((error) => {
+        // Catch and log autoplay errors (browsers often prevent autoplay without user interaction)
+        console.warn(`Autoplay prevented for ${demo.title}:`, error);
+      });
     }
-  }, [demo.videoSrc, isActive]); // Re-run effect when video source or isActive state changes
+  }, [demo.videoSrc]); // Re-run effect only when video source changes
 
   // Handler for click events on the card
   const handleClick = () => {
     // Call the onCardClick prop, passing this card's ID
-    // The parent component will handle setting the active state
+    // The parent component will handle setting the active state for visual effects
     onCardClick(demo.id);
   };
 
@@ -160,11 +153,11 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
       <div className="w-full aspect-[9/16] bg-gray-200 rounded-lg overflow-hidden relative">
         <video
           ref={videoRef} // Assign the ref to the video element
-          autoPlay={false} // Set to false, controlled by useEffect based on isActive
+          autoPlay={true} // Set to true for initial autoplay attempt
           loop // Loop the video playback
-          muted // Mute the video
+          muted // Mute the video for reliable autoplay
           playsInline // Ensure video plays inline on iOS
-          preload="metadata" // Preload only metadata for faster loading
+          preload="auto" // Preload entire video for smoother start
           className="absolute inset-0 w-full h-full object-cover" // Cover the container
         >
           <source src={demo.videoSrc} type="video/mp4" />
