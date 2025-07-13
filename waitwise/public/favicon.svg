@@ -1,34 +1,13 @@
-<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <!-- 
-      Waitwise Text-Based Favicon (Black & White)
-      Concept: A clean, modern "W" for Waitwise, set on a rounded square.
-      This high-contrast monochrome version is classic and highly readable.
-    -->
-
-    <!-- Background: A rounded square with a solid black fill -->
-    <rect 
-        width="100" 
-        height="100" 
-        rx="20" 
-        ry="20" 
-        fill="black"
-    />
-
-    <!-- 
-      Text Element: The letter "W".
-      - Centered perfectly using text-anchor and dominant-baseline.
-      - Bold, white, and a clean sans-serif font for maximum contrast and clarity.
-    -->
-    <text 
-        x="50%" 
-        y="50%" 
-        dominant-baseline="central" 
-        text-anchor="middle" 
-        font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif"
-        font-size="70" 
-        font-weight="bold" 
-        fill="white"
-    >
-        W
-    </text>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 93.64 97.63">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #ff284d;
+      }
+    </style>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <polygon class="cls-1" points="79.27 0 79.25 .28 60.24 27.36 62.45 31.01 78.43 12.61 74.57 71.19 74.21 84.63 68.69 71.79 52.24 32.94 41.12 32.94 26.84 69.17 21.15 84.63 19.79 66.41 16.05 12.44 32.18 31.01 34.39 27.36 15.18 0 0 0 8.13 97.63 28.29 97.63 41.85 63.79 46.1 51.77 50.16 62.9 64.81 97.63 85.69 97.63 93.64 0 79.27 0"/>
+  </g>
 </svg>
