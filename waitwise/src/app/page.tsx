@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { MobileNav } from "@/components/ui/MobileNav";
@@ -74,78 +74,91 @@ interface VideoDemoCardProps {
   variants: typeof fadeIn;
 }
 
-const VideoDemoCard: React.FC<VideoDemoCardProps> = ({ demo, variants }) => {
+const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
+  demo,
+  variants,
+}) => {
+  // Reference to the video element for controlling playback
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPressed, setIsPressed] = React.useState(false);
-  const pressTimeout = useRef<NodeJS.Timeout | null>(null);
+  // State to manage whether the card is "clicked" (for mobile effect)
+  const [isClicked, setIsClicked] = useState(false);
 
+  // Effect to load and attempt to play the video when videoSrc changes
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.load();
+      videoRef.current.load(); // Reload the video source
       videoRef.current.play().catch((error) => {
+        // Catch and log autoplay errors (browsers often prevent autoplay without user interaction)
         console.warn(`Autoplay prevented for ${demo.title}:`, error);
       });
     }
-  }, [demo.videoSrc]);
+  }, [demo.videoSrc]); // Re-run effect when video source changes
 
-  // Start long press
-  const handleTouchStart = () => {
-    pressTimeout.current = setTimeout(() => {
-      setIsPressed(true);
-    }, 300); // Hold for 300ms
+  // Handler for click events on the card
+  const handleClick = () => {
+    // Toggle the isClicked state. On mobile, this will apply/remove the effects.
+    // On desktop, whileHover will take precedence when the mouse is over the element.
+    setIsClicked(!isClicked);
   };
 
-  // End or cancel long press
-  const handleTouchEnd = () => {
-    if (pressTimeout.current) {
-      clearTimeout(pressTimeout.current);
-      pressTimeout.current = null;
-    }
-    // Reset after short delay if active
-    if (isPressed) {
-      setTimeout(() => setIsPressed(false), 800);
-    }
+  // Define the animation properties for the "active" state (hovered or clicked)
+  const activeAnimation = {
+    scale: 1.5, // Scale up the card
+    rotate: 0, // Ensure no rotation (if any initial rotation was applied)
+    zIndex: 10, // Bring the card to the front
+    // Custom box shadow to match the desired hover effect
+    boxShadow: '0 8px 24px rgba(255,40,77,0.6)',
+    transition: { duration: 0.4 }, // Smooth transition duration
+  };
+
+  // Define the animation properties for the "default" state (unhovered and unclicked)
+  const defaultAnimation = {
+    scale: 1, // Original scale
+    rotate: 0, // No rotation
+    zIndex: 1, // Default z-index
+    // A subtle shadow to mimic Tailwind's 'shadow-md'
+    boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)',
+    transition: { duration: 0.3 }, // Smooth transition duration
   };
 
   return (
+    // motion.div is used for Framer Motion animations
     <motion.div
-      key={demo.id}
+      key={demo.id} // Unique key for list rendering
       className={`flex-shrink-0 w-[120px] sm:w-[140px] md:w-[160px]
         flex flex-col items-center text-center gap-2 p-3 rounded-lg border border-border bg-background
-        shadow-md
-        transition-all duration-300 relative cursor-pointer
-        ${isPressed ? "scale-105 z-10 shadow-[0_8px_24px_rgba(255,40,77,0.6)]" : ""}`}
-      variants={variants}
-      whileHover={{
-        scale: 1.5,
-        zIndex: 10,
-        boxShadow: "0 8px 24px rgba(255,40,77,0.6)",
-        transition: { duration: 0.4 },
-      }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
+        shadow-md // Base shadow provided by Tailwind
+        relative`} // Removed hover:shadow and transition-shadow as Framer Motion handles these
+      variants={variants} // Framer Motion variants for parent-controlled animations
+      // 'animate' prop applies the animation based on the 'isClicked' state.
+      // If isClicked is true, apply activeAnimation; otherwise, apply defaultAnimation.
+      animate={isClicked ? activeAnimation : defaultAnimation}
+      // 'whileHover' prop applies the activeAnimation when the mouse hovers over the element.
+      // This will override 'animate' when hovering on desktop.
+      whileHover={activeAnimation}
+      // 'onClick' handler to toggle the 'isClicked' state
+      onClick={handleClick}
     >
       <div className="w-full aspect-[9/16] bg-gray-200 rounded-lg overflow-hidden relative">
         <video
-          ref={videoRef}
-          autoPlay={false}
-          loop
-          muted
-          playsInline
-          preload="metadata"
-          className="absolute inset-0 w-full h-full object-cover"
+          ref={videoRef} // Assign the ref to the video element
+          autoPlay={false} // Set to false to prevent initial autoplay issues, useEffect handles it
+          loop // Loop the video playback
+          muted // Mute the video
+          playsInline // Ensure video plays inline on iOS
+          preload="metadata" // Preload only metadata for faster loading
+          className="absolute inset-0 w-full h-full object-cover" // Cover the container
         >
           <source src={demo.videoSrc} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
       </div>
+      {/* Display the demo title and description */}
       <h4 className="font-bold text-base mt-1 text-foreground">{demo.title}</h4>
       <p className="text-muted-foreground text-xs">{demo.description}</p>
     </motion.div>
   );
 };
-
 
 
 
