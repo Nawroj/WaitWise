@@ -35,8 +35,16 @@ const staggerContainer = {
   },
 };
 
+// Define VideoDemo interface (moved from App to be globally accessible if needed)
+interface VideoDemo {
+  id: string;
+  title: string;
+  description: string;
+  videoSrc: string;
+}
+
 // Define video demo data
-const demoVideos = [
+const demoVideos: VideoDemo[] = [ // Explicitly type demoVideos as VideoDemo[]
   {
     id: "salon_dashboard",
     title: "Salon Dashboard",
@@ -69,36 +77,46 @@ const demoVideos = [
   },
 ];
 
+// Updated VideoDemoCardProps interface to match the Canvas component
 interface VideoDemoCardProps {
-  demo: typeof demoVideos[0];
-  variants: typeof fadeIn;
+  demo: VideoDemo; // Use the VideoDemo interface directly
+  variants?: any; // Keep variants as optional
+  isActive: boolean; // New prop: indicates if this card is the currently active one
+  onCardClick: (id: string) => void; // New prop: callback function to notify parent when this card is clicked
 }
 
 const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
   demo,
   variants,
+  isActive, // Destructure the new isActive prop
+  onCardClick, // Destructure the new onCardClick prop
 }) => {
   // Reference to the video element for controlling playback
   const videoRef = useRef<HTMLVideoElement>(null);
-  // State to manage whether the card is "clicked" (for mobile effect)
-  const [isClicked, setIsClicked] = useState(false);
 
-  // Effect to load and attempt to play the video when videoSrc changes
+  // Effect to load and attempt to play the video when videoSrc changes or isActive changes
+  // Video should play only when it is the active card
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.load(); // Reload the video source
-      videoRef.current.play().catch((error) => {
-        // Catch and log autoplay errors (browsers often prevent autoplay without user interaction)
-        console.warn(`Autoplay prevented for ${demo.title}:`, error);
-      });
+      if (isActive) {
+        videoRef.current.load(); // Reload the video source
+        videoRef.current.play().catch((error) => {
+          // Catch and log autoplay errors (browsers often prevent autoplay without user interaction)
+          console.warn(`Autoplay prevented for ${demo.title}:`, error);
+        });
+      } else {
+        // Pause and reset video if it's no longer the active card
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      }
     }
-  }, [demo.videoSrc]); // Re-run effect when video source changes
+  }, [demo.videoSrc, isActive]); // Re-run effect when video source or isActive state changes
 
   // Handler for click events on the card
   const handleClick = () => {
-    // Toggle the isClicked state. On mobile, this will apply/remove the effects.
-    // On desktop, whileHover will take precedence when the mouse is over the element.
-    setIsClicked(!isClicked);
+    // Call the onCardClick prop, passing this card's ID
+    // The parent component will handle setting the active state
+    onCardClick(demo.id);
   };
 
   // Define the animation properties for the "active" state (hovered or clicked)
@@ -130,9 +148,9 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
         shadow-md // Base shadow provided by Tailwind
         relative`} // Removed hover:shadow and transition-shadow as Framer Motion handles these
       variants={variants} // Framer Motion variants for parent-controlled animations
-      // 'animate' prop applies the animation based on the 'isClicked' state.
-      // If isClicked is true, apply activeAnimation; otherwise, apply defaultAnimation.
-      animate={isClicked ? activeAnimation : defaultAnimation}
+      // 'animate' prop applies the animation based on the 'isActive' prop.
+      // If isActive is true, apply activeAnimation; otherwise, apply defaultAnimation.
+      animate={isActive ? activeAnimation : defaultAnimation}
       // 'whileHover' prop applies the activeAnimation when the mouse hovers over the element.
       // This will override 'animate' when hovering on desktop.
       whileHover={activeAnimation}
@@ -142,7 +160,7 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
       <div className="w-full aspect-[9/16] bg-gray-200 rounded-lg overflow-hidden relative">
         <video
           ref={videoRef} // Assign the ref to the video element
-          autoPlay={false} // Set to false to prevent initial autoplay issues, useEffect handles it
+          autoPlay={false} // Set to false, controlled by useEffect based on isActive
           loop // Loop the video playback
           muted // Mute the video
           playsInline // Ensure video plays inline on iOS
@@ -163,6 +181,15 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
 
 
 export default function HomePage() {
+  // State to keep track of the currently active (clicked) card's ID
+  const [activeDemoId, setActiveDemoId] = useState<string | null>(null);
+
+  // Handler for when a VideoDemoCard is clicked
+  const handleCardClick = (id: string) => {
+    // If the clicked card is already active, deactivate it (toggle off)
+    // Otherwise, set the clicked card as the new active card
+    setActiveDemoId(prevId => (prevId === id ? null : id));
+  };
 
   return (
     <div className="flex flex-col items-center min-h-screen text-foreground">
@@ -279,23 +306,27 @@ export default function HomePage() {
 
             {/* Display all videos in a single, responsive grid */}
             <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8 px-4">
-  {demoVideos.length > 0 ? (
-    demoVideos.map((demo) => (
-      <VideoDemoCard
-        key={demo.id}
-        demo={demo}
-        variants={fadeIn}
-      />
-    ))
-  ) : (
-    <motion.div
-      variants={fadeIn}
-      className="w-full text-center text-muted-foreground py-8"
-    >
-      No demo videos available yet.
-    </motion.div>
-  )}
-</div>
+              {demoVideos.length > 0 ? (
+                demoVideos.map((demo) => (
+                  <VideoDemoCard
+                    key={demo.id}
+                    demo={demo}
+                    variants={fadeIn}
+                    // Pass isActive prop: true if this card's ID matches the activeDemoId
+                    isActive={activeDemoId === demo.id}
+                    // Pass the handleCardClick callback to each card
+                    onCardClick={handleCardClick}
+                  />
+                ))
+              ) : (
+                <motion.div
+                  variants={fadeIn}
+                  className="w-full text-center text-muted-foreground py-8"
+                >
+                  No demo videos available yet.
+                </motion.div>
+              )}
+            </div>
 
           </motion.div>
         </section>
@@ -304,141 +335,141 @@ export default function HomePage() {
 
         {/* "How It Works" section: Explains the process in three steps */}
         <section
-  id="how-it-works"
-  className="w-full py-20 bg-background border-y border-border"
->
-  <motion.div
-    className="container mx-auto px-4"
-    initial="initial"
-    whileInView="animate"
-    viewport={{ once: true, amount: 0.3 }}
-    variants={staggerContainer}
-  >
-    <motion.div
-      className="mx-auto max-w-3xl text-center"
-      variants={fadeIn}
-    >
-      <h3 className="text-3xl font-bold text-foreground">How It Works</h3>
-      <p className="mt-2 text-muted-foreground">
-        Get up and running in three simple steps.
-      </p>
-    </motion.div>
-
-    <motion.div
-      className="mx-auto mt-16 grid max-w-5xl items-start gap-10 text-left md:grid-cols-3 lg:gap-12"
-      variants={staggerContainer}
-    >
-      {[
-        {
-          title: "Set Up Your Shop",
-          description:
-            "Create your account and add your business details, services, and staff members in minutes.",
-        },
-        {
-          title: "Customers Join Online",
-          description:
-            "Customers scan a QR code or visit your public page to join the queue and see real-time wait estimates.",
-        },
-        {
-          title: "Manage the Flow",
-          description:
-            "Use your live dashboard to manage the queue, update customer statuses, and keep everything running smoothly.",
-        },
-      ].map((step, i) => (
-        <motion.div
-          key={i}
-          className="flex flex-col gap-4 p-6 border border-border rounded-xl bg-background shadow hover:shadow-[0_6px_20px_rgba(255,40,77,0.2)] transition-shadow"
-          variants={fadeIn}
+          id="how-it-works"
+          className="w-full py-20 bg-background border-y border-border"
         >
-          <div className="bg-[#ff284d] text-white rounded-full h-10 w-10 flex items-center justify-center font-bold text-lg shadow-lg">
-            {i + 1}
-          </div>
-          <div>
-            <h4 className="font-semibold text-lg text-foreground">{step.title}</h4>
-            <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
-          </div>
-        </motion.div>
-      ))}
-    </motion.div>
-  </motion.div>
-</section>
+          <motion.div
+            className="container mx-auto px-4"
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={staggerContainer}
+          >
+            <motion.div
+              className="mx-auto max-w-3xl text-center"
+              variants={fadeIn}
+            >
+              <h3 className="text-3xl font-bold text-foreground">How It Works</h3>
+              <p className="mt-2 text-muted-foreground">
+                Get up and running in three simple steps.
+              </p>
+            </motion.div>
+
+            <motion.div
+              className="mx-auto mt-16 grid max-w-5xl items-start gap-10 text-left md:grid-cols-3 lg:gap-12"
+              variants={staggerContainer}
+            >
+              {[
+                {
+                  title: "Set Up Your Shop",
+                  description:
+                    "Create your account and add your business details, services, and staff members in minutes.",
+                },
+                {
+                  title: "Customers Join Online",
+                  description:
+                    "Customers scan a QR code or visit your public page to join the queue and see real-time wait estimates.",
+                },
+                {
+                  title: "Manage the Flow",
+                  description:
+                    "Use your live dashboard to manage the queue, update customer statuses, and keep everything running smoothly.",
+                },
+              ].map((step, i) => (
+                <motion.div
+                  key={i}
+                  className="flex flex-col gap-4 p-6 border border-border rounded-xl bg-background shadow hover:shadow-[0_6px_20px_rgba(255,40,77,0.2)] transition-shadow"
+                  variants={fadeIn}
+                >
+                  <div className="bg-[#ff284d] text-white rounded-full h-10 w-10 flex items-center justify-center font-bold text-lg shadow-lg">
+                    {i + 1}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-lg text-foreground">{step.title}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.div>
+        </section>
 
 
         {/* --- */}
 
         {/* Features & Benefits section: Highlights key advantages of using WaitWise */}
         <section id="features" className="w-full py-20 bg-transparent">
-  <motion.div
-    className="container mx-auto px-4"
-    initial="initial"
-    whileInView="animate"
-    viewport={{ once: true, amount: 0.3 }}
-    variants={staggerContainer}
-  >
-    <motion.div
-      className="mx-auto max-w-3xl text-center mb-16"
-      variants={fadeIn}
-    >
-      <h3 className="text-3xl font-bold text-foreground">
-        Everything You Need for a Seamless Flow
-      </h3>
-    </motion.div>
+          <motion.div
+            className="container mx-auto px-4"
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={staggerContainer}
+          >
+            <motion.div
+              className="mx-auto max-w-3xl text-center mb-16"
+              variants={fadeIn}
+            >
+              <h3 className="text-3xl font-bold text-foreground">
+                Everything You Need for a Seamless Flow
+              </h3>
+            </motion.div>
 
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 justify-items-center">
-  {[
-    {
-      icon: <Users className="h-8 w-8 text-[#ff284d]" />,
-      title: "Live Queue Management",
-      description:
-        "View and manage separate queues for each barber in real-time.",
-    },
-    {
-      icon: <QrCode className="h-8 w-8 text-[#ff284d]" />,
-      title: "Custom QR Code",
-      description:
-        "Generate a unique QR code for your shop that customers can scan instantly.",
-    },
-    {
-      icon: <BarChart2 className="h-8 w-8 text-[#ff284d]" />,
-      title: "Daily Analytics",
-      description:
-        "Track key metrics like revenue and clients per barber with clear charts.",
-    },
-    {
-      icon: <TrendingUp className="h-8 w-8 text-[#ff284d]" />,
-      title: "Reduce Walk-outs",
-      description:
-        "Let customers wait remotely and reduce perceived wait time.",
-    },
-    {
-      icon: <ThumbsUp className="h-8 w-8 text-[#ff284d]" />,
-      title: "Improve Customer Experience",
-      description:
-        "A modern, transparent queue process respects your customers' time.",
-    },
-    {
-      icon: <Clock className="h-8 w-8 text-[#ff284d]" />,
-      title: "Increase Staff Efficiency",
-      description:
-        "Focus on service, not managing a crowded waiting area.",
-    },
-  ].map((feature, i) => (
-    <motion.div
-      key={i}
-      className="w-full max-w-[160px] md:max-w-[220px] flex flex-col items-center text-center gap-2 p-4 border border-border rounded-xl bg-background shadow-sm hover:shadow-[0_6px_20px_rgba(255,40,77,0.2)] transition-shadow"
-      variants={fadeIn}
-    >
-      {feature.icon}
-      <h4 className="font-semibold text-sm md:text-base text-foreground">
-        {feature.title}
-      </h4>
-      <p className="text-xs text-muted-foreground">{feature.description}</p>
-    </motion.div>
-  ))}
-</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 justify-items-center">
+              {[
+                {
+                  icon: <Users className="h-8 w-8 text-[#ff284d]" />,
+                  title: "Live Queue Management",
+                  description:
+                    "View and manage separate queues for each barber in real-time.",
+                },
+                {
+                  icon: <QrCode className="h-8 w-8 text-[#ff284d]" />,
+                  title: "Custom QR Code",
+                  description:
+                    "Generate a unique QR code for your shop that customers can scan instantly.",
+                },
+                {
+                  icon: <BarChart2 className="h-8 w-8 text-[#ff284d]" />,
+                  title: "Daily Analytics",
+                  description:
+                    "Track key metrics like revenue and clients per barber with clear charts.",
+                },
+                {
+                  icon: <TrendingUp className="h-8 w-8 text-[#ff284d]" />,
+                  title: "Reduce Walk-outs",
+                  description:
+                    "Let customers wait remotely and reduce perceived wait time.",
+                },
+                {
+                  icon: <ThumbsUp className="h-8 w-8 text-[#ff284d]" />,
+                  title: "Improve Customer Experience",
+                  description:
+                    "A modern, transparent queue process respects your customers' time.",
+                },
+                {
+                  icon: <Clock className="h-8 w-8 text-[#ff284d]" />,
+                  title: "Increase Staff Efficiency",
+                  description:
+                    "Focus on service, not managing a crowded waiting area.",
+                },
+              ].map((feature, i) => (
+                <motion.div
+                  key={i}
+                  className="w-full max-w-[160px] md:max-w-[220px] flex flex-col items-center text-center gap-2 p-4 border border-border rounded-xl bg-background shadow-sm hover:shadow-[0_6px_20px_rgba(255,40,77,0.2)] transition-shadow"
+                  variants={fadeIn}
+                >
+                  {feature.icon}
+                  <h4 className="font-semibold text-sm md:text-base text-foreground">
+                    {feature.title}
+                  </h4>
+                  <p className="text-xs text-muted-foreground">{feature.description}</p>
+                </motion.div>
+              ))}
+            </div>
 
-  </motion.div>
-</section>
+          </motion.div>
+        </section>
 
       </main>
 
