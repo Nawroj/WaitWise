@@ -12,7 +12,7 @@ import {
   ThumbsUp,
   TrendingUp,
 } from "lucide-react";
-import { motion, Variant, Variants } from "framer-motion"; // Import Variant and Variants types
+import { motion, Variants } from "framer-motion"; // Import Variant and Variants types
 
 // Animation variants for Framer Motion
 const fadeIn = {
