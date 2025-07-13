@@ -76,7 +76,8 @@ interface VideoDemoCardProps {
 
 const VideoDemoCard: React.FC<VideoDemoCardProps> = ({ demo, variants }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isActive, setIsActive] = React.useState(false);
+  const [isPressed, setIsPressed] = React.useState(false);
+  const pressTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -87,9 +88,23 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({ demo, variants }) => {
     }
   }, [demo.videoSrc]);
 
-  const handleClick = () => {
-    setIsActive(true);
-    setTimeout(() => setIsActive(false), 1000); // Reset after 1s
+  // Start long press
+  const handleTouchStart = () => {
+    pressTimeout.current = setTimeout(() => {
+      setIsPressed(true);
+    }, 300); // Hold for 300ms
+  };
+
+  // End or cancel long press
+  const handleTouchEnd = () => {
+    if (pressTimeout.current) {
+      clearTimeout(pressTimeout.current);
+      pressTimeout.current = null;
+    }
+    // Reset after short delay if active
+    if (isPressed) {
+      setTimeout(() => setIsPressed(false), 800);
+    }
   };
 
   return (
@@ -98,12 +113,8 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({ demo, variants }) => {
       className={`flex-shrink-0 w-[120px] sm:w-[140px] md:w-[160px]
         flex flex-col items-center text-center gap-2 p-3 rounded-lg border border-border bg-background
         shadow-md
-        transition-shadow duration-300 relative cursor-pointer
-        ${
-          isActive
-            ? "shadow-[0_8px_24px_rgba(255,40,77,0.6)] scale-105 z-10"
-            : ""
-        }`}
+        transition-all duration-300 relative cursor-pointer
+        ${isPressed ? "scale-105 z-10 shadow-[0_8px_24px_rgba(255,40,77,0.6)]" : ""}`}
       variants={variants}
       whileHover={{
         scale: 1.5,
@@ -111,7 +122,9 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({ demo, variants }) => {
         boxShadow: "0 8px 24px rgba(255,40,77,0.6)",
         transition: { duration: 0.4 },
       }}
-      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       <div className="w-full aspect-[9/16] bg-gray-200 rounded-lg overflow-hidden relative">
         <video
