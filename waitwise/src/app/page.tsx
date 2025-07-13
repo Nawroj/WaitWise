@@ -12,7 +12,7 @@ import {
   ThumbsUp,
   TrendingUp,
 } from "lucide-react";
-import { motion, Variant } from "framer-motion"; // Import Variant type
+import { motion, Variant, Variants } from "framer-motion"; // Import Variant and Variants types
 
 // Animation variants for Framer Motion
 const fadeIn = {
@@ -80,7 +80,7 @@ const demoVideos: VideoDemo[] = [ // Explicitly type demoVideos as VideoDemo[]
 // Updated VideoDemoCardProps interface to match the Canvas component
 interface VideoDemoCardProps {
   demo: VideoDemo; // Use the VideoDemo interface directly
-  variants?: Variant; // Changed 'any' to 'Variant' for better typing
+  variants?: Variants; // Changed 'Variant' to 'Variants' to fix the type error
   isActive: boolean; // New prop: indicates if this card is the currently active one
   onCardClick: (id: string) => void; // New prop: callback function to notify parent when this card is clicked
 }
