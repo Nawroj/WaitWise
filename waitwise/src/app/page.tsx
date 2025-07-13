@@ -72,13 +72,11 @@ const demoVideos = [
 interface VideoDemoCardProps {
   demo: typeof demoVideos[0];
   variants: typeof fadeIn;
-  rotationDegree: number;
 }
 
 const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
   demo,
   variants,
-  rotationDegree,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -106,8 +104,7 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
         zIndex: 10,
         transition: { duration: 0.4 },
       }}
-      initial={{ rotate: rotationDegree, ...variants.initial }}
-      animate={{ rotate: rotationDegree, ...variants.animate }}
+
     >
       <div className="w-full aspect-[9/16] bg-gray-200 rounded-lg overflow-hidden relative">
         <video
