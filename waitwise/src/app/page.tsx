@@ -74,11 +74,9 @@ interface VideoDemoCardProps {
   variants: typeof fadeIn;
 }
 
-const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
-  demo,
-  variants,
-}) => {
+const VideoDemoCard: React.FC<VideoDemoCardProps> = ({ demo, variants }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isTouched, setIsTouched] = React.useState(false);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -89,22 +87,27 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
     }
   }, [demo.videoSrc]);
 
+  const triggerTouchEffect = () => {
+    setIsTouched(true);
+    setTimeout(() => setIsTouched(false), 1000); // auto-reset after 1s
+  };
+
   return (
     <motion.div
       key={demo.id}
       className={`flex-shrink-0 w-[120px] sm:w-[140px] md:w-[160px]
         flex flex-col items-center text-center gap-2 p-3 rounded-lg border border-border bg-background
         shadow-md
-        hover:shadow-[0_8px_24px_rgba(255,40,77,0.6)]
-        transition-shadow duration-300 relative`}
+        transition-all duration-300 relative cursor-pointer
+        ${isTouched ? "scale-105 z-10 shadow-[0_8px_24px_rgba(255,40,77,0.6)]" : ""}`}
       variants={variants}
       whileHover={{
         scale: 1.5,
-        rotate: 0,
         zIndex: 10,
+        boxShadow: "0 8px 24px rgba(255,40,77,0.6)",
         transition: { duration: 0.4 },
       }}
-
+      onTouchStart={triggerTouchEffect}
     >
       <div className="w-full aspect-[9/16] bg-gray-200 rounded-lg overflow-hidden relative">
         <video
@@ -125,6 +128,7 @@ const VideoDemoCard: React.FC<VideoDemoCardProps> = ({
     </motion.div>
   );
 };
+
 
 
 
