@@ -188,20 +188,20 @@ export default function PricingPage() {
             <div className="p-6 pt-0">
               <Link href={tier.href} className="w-full block">
                 <Button
-                  size="lg"
-                  variant={tier.variant}
-                  className="w-full
-                             rounded-[33px] 
-                             bg-[#ff284d] 
-                             text-black 
-                             hover:bg-[#e02245] 
-                             transition-all duration-300
-                             transform hover:scale-105
-                             shadow-lg shadow-[#ff284d]/50
-                             hover:shadow-[0_10px_25px_rgb(255,40,77,0.7)]"
-                >
-                  {tier.cta}
-                </Button>
+  size="lg"
+  variant={tier.variant}
+  className={`w-full
+             rounded-[33px] 
+             bg-[#ff284d] 
+             ${tier.name === "Pay-as-you-go" ? "text-white" : "text-black"}
+             hover:bg-[#e02245] 
+             transition-all duration-300
+             transform hover:scale-105
+             shadow-lg shadow-[#ff284d]/50
+             hover:shadow-[0_10px_25px_rgb(255,40,77,0.7)]`}
+>
+  {tier.cta}
+</Button>
               </Link>
             </div>
           </Card>
