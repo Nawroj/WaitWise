@@ -174,7 +174,6 @@ export default function DashboardPage() {
   // const [activeEditSection, setActiveEditSection] = useState<EditSection | null>(null);
 
   // Billing dialog states (can be removed if all billing goes to settings page)
-  const [billingEmail, setBillingEmail] = useState("");
   const [failedInvoice, setFailedInvoice] = useState<Invoice | null>(null);
   // Removed stripePromise loadStripe
 
@@ -768,7 +767,7 @@ export default function DashboardPage() {
         let userMessage =
           "Failed to process payment. Please try again or update your payment method.";
         let actionLabel = "Update Method";
-        let actionOnClick = () => {
+        const actionOnClick = () => {
           router.push("/dashboard/settings");
         };
 
