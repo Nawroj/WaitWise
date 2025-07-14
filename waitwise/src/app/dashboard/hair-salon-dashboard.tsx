@@ -12,20 +12,10 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../components/ui/table";
 import { Separator } from "../../components/ui/separator";
 import { Badge } from "../../components/ui/badge";
 import {
@@ -56,17 +46,11 @@ import {
   Trash2,
   Edit, // Keep for "Edit Staff Member" within queue actions if needed, otherwise remove.
   RefreshCw,
-  QrCode, // Keep if you want a quick link to QR code, otherwise remove.
-  CreditCard, // Keep if billing dialog is still here, otherwise remove.
   Wand2,
-  ListPlus,
-  UserPlus,
   MoreVertical,
   Loader2,
-  Store,
   Users,
   PauseCircle,
-  ChevronDown,
   CalendarCheck,
   XCircle,
   ChevronLeft,
@@ -77,7 +61,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "../../components/ui/avatar";
-import QRCode from "qrcode"; // Keep if you want a quick link to QR code, otherwise remove.
 import { toast } from "sonner";
 import { Switch } from "../../components/ui/switch";
 import { motion, easeInOut } from "framer-motion";
@@ -85,11 +68,6 @@ import { motion, easeInOut } from "framer-motion";
 // import { Elements } from "@stripe/react-stripe-js";
 // import { loadStripe } from "@stripe/stripe-js";
 // import { StripePaymentForm } = "../../components/ui/StripePaymentForm";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "../../components/ui/collapsible";
 import { format } from "date-fns"; // Import format for date display
 
 // Animation Variants (keep these)
@@ -196,10 +174,7 @@ export default function DashboardPage() {
   // const [activeEditSection, setActiveEditSection] = useState<EditSection | null>(null);
 
   // Billing dialog states (can be removed if all billing goes to settings page)
-  const [isBillingDialogOpen, setIsBillingDialogOpen] = useState(false);
-  const [isUpgrading, setIsUpgrading] = useState(false);
   const [billingEmail, setBillingEmail] = useState("");
-  const [isEmailPromptVisible, setIsEmailPromptVisible] = useState(false);
   const [failedInvoice, setFailedInvoice] = useState<Invoice | null>(null);
   // Removed stripePromise loadStripe
 
@@ -504,32 +479,6 @@ export default function DashboardPage() {
     [barbers],
   );
 
-  // Removed handleToggleBarberWorkStatus, handleStartBreak, handleEndBreak as break management moves to settings staff section
-
-  // Handles click on the "Upgrade Now" button in billing (if still present on dashboard)
-  const handleUpgradeClick = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user && user.email) {
-      setBillingEmail(user.email);
-      setIsEmailPromptVisible(false);
-    } else {
-      setIsEmailPromptVisible(true);
-    }
-    setIsUpgrading(true);
-  };
-
-  // Handles submission of billing email (if still present on dashboard)
-  const handleEmailSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!billingEmail.includes("@")) {
-      toast.error("Please enter a valid email address.");
-      return;
-    }
-    setIsEmailPromptVisible(false);
-  };
-
   // Re-queues a client from 'no_show' status
   const handleRequeue = async (entry: QueueEntry) => {
     if (!entry.barbers?.id) {
@@ -833,7 +782,6 @@ export default function DashboardPage() {
           userMessage =
             "Invoice was already paid. Your account should be active.";
           actionLabel = "Close";
-          actionOnClick = () => setIsBillingDialogOpen(false); // If dialog still exists
         } else if (parsedError.includes("Cannot retry payment")) {
           userMessage =
             "This invoice cannot be retried. Please check your billing settings.";
@@ -864,7 +812,6 @@ export default function DashboardPage() {
         } else if (updatedShop) {
           setShop(updatedShop);
         }
-        setIsBillingDialogOpen(false); // If dialog still exists
       }
     } catch (error: unknown) {
       toast.dismiss("retry-payment-toast");
@@ -1062,243 +1009,6 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
-        {/* Billing Dialog (Removed if completely moved to settings page) */}
-        {/* If you decide to keep a 'quick upgrade' or basic billing view on dashboard, this section would remain.
-            Otherwise, remove it entirely. For now, I'm assuming you want to move it. */}
-        {/*
-        <Dialog
-          open={isBillingDialogOpen}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) {
-              setIsUpgrading(false);
-              setIsEmailPromptVisible(false);
-              setBillingEmail("");
-            }
-            setIsBillingDialogOpen(isOpen);
-          }}
-        >
-          <DialogContent className="grid grid-rows-[auto_1fr_auto] max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle>Billing & Subscription</DialogTitle>
-            </DialogHeader>
-            <motion.div
-              initial="initial"
-              animate="animate"
-              variants={staggerContainer}
-              className="py-4 pr-6 overflow-y-auto"
-            >
-              {shop.subscription_status === "trial" ||
-              shop.subscription_status === null ? (
-                <motion.div variants={fadeIn} className="space-y-4">
-                  <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">Current Plan</p>
-                      <p className="text-2xl font-bold capitalize">Trial</p>
-                    </div>
-                    {!isUpgrading && (
-                      <Button
-                        onClick={handleUpgradeClick}
-                        className="transition-transform hover:scale-105"
-                      >
-                        <CreditCard className="mr-2 h-4 w-4" /> Upgrade Now
-                      </Button>
-                    )}
-                  </div>
-                  {isUpgrading && (
-                    <motion.div variants={fadeIn} className="pt-4">
-                      {isEmailPromptVisible ? (
-                        <form
-                          onSubmit={handleEmailSubmit}
-                          className="space-y-4"
-                        >
-                          <DialogDescription>
-                            Your account doesn&apos;t have an email. Please
-                            provide a billing email address to continue.
-                          </DialogDescription>
-                          <div className="grid gap-2">
-                            <Label htmlFor="billing-email">Billing Email</Label>
-                            <Input
-                              id="billing-email"
-                              type="email"
-                              placeholder="you@example.com"
-                              value={billingEmail}
-                              onChange={(e) => setBillingEmail(e.target.value)}
-                              required
-                            />
-                          </div>
-                          <Button type="submit" className="w-full">
-                            Save and Continue
-                          </Button>
-                        </form>
-                      ) : (
-                        <>
-                          <DialogDescription className="mb-4">
-                            To upgrade to our Pay-as-you-go plan, please add a
-                            payment method.
-                          </DialogDescription>
-                          <Elements stripe={stripePromise}>
-                            <StripePaymentForm
-                              billingEmail={billingEmail}
-                              onSuccess={async () => {
-                                toast.success(
-                                  "Upgrade successful! Your payment method has been saved.",
-                                );
-                                const {
-                                  data: updatedShop,
-                                  error: shopRefreshError,
-                                } = await supabase
-                                  .from("shops")
-                                  .select("*")
-                                  .eq("id", shop.id)
-                                  .single();
-                                if (shopRefreshError) {
-                                  console.error(
-                                    "Error refreshing shop data after upgrade:",
-                                    shopRefreshError,
-                                  );
-                                  toast.error(
-                                    "Account updated, but failed to refresh shop data.",
-                                  );
-                                } else if (updatedShop) {
-                                  setShop(updatedShop);
-                                }
-                                setIsBillingDialogOpen(false);
-                              }}
-                              onFailure={(errorMsg) => {
-                                toast.error(errorMsg);
-                              }}
-                              shopId={shop.id}
-                            />
-                          </Elements>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </motion.div>
-              ) : (
-                <motion.div variants={fadeIn} className="space-y-4">
-                  {shop.subscription_status === "past_due" && failedInvoice && (
-                    <div className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg text-destructive">
-                      <p className="font-bold">Payment Failed</p>
-                      <p className="text-sm">
-                        Your payment of ${" "}
-                        {(failedInvoice.amount_due / 100).toFixed(2)} on{" "}
-                        {new Date(
-                          failedInvoice.created_at,
-                        ).toLocaleDateString()}{" "}
-                        was declined.
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">Current Plan</p>
-                      <p className="text-2xl font-bold capitalize">
-                        {shop.subscription_status}
-                      </p>
-                    </div>
-                    {shop.subscription_status === "active" ? (
-                      <Badge variant="default" className="bg-green-600">
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive">Past Due</Badge>
-                    )}
-                  </div>
-
-                  <p className="text-sm text-muted-foreground">
-                    {shop.subscription_status === "past_due"
-                      ? "Please update your payment method to automatically retry the payment and restore service."
-                      : "You have a payment method on file."}
-                  </p>
-
-                  <Button
-                    variant="outline"
-                    className="w-full hover:text-primary hover:border-primary"
-                    onClick={async () => {
-                      if (!isUpgrading) {
-                        const {
-                          data: { user },
-                        } = await supabase.auth.getUser();
-                        if (user && user.email) {
-                          setBillingEmail(user.email);
-                          setIsEmailPromptVisible(false);
-                        } else {
-                          setIsEmailPromptVisible(true);
-                          setBillingEmail("");
-                        }
-                      }
-                      setIsUpgrading(!isUpgrading);
-                    }}
-                  >
-                    {isUpgrading ? "Close Form" : "Update Payment Method"}
-                  </Button>
-
-                  {isUpgrading && (
-                    <motion.div variants={fadeIn} className="pt-4">
-                      <Elements stripe={stripePromise}>
-                        <StripePaymentForm
-                          billingEmail={billingEmail}
-                          onSuccess={async () => {
-                            toast.success(
-                              "Upgrade successful! Your payment method has been saved.",
-                            );
-                            const {
-                              data: updatedShop,
-                              error: shopRefreshError,
-                            } = await supabase
-                              .from("shops")
-                              .select("*")
-                              .eq("id", shop.id)
-                              .single();
-                            if (shopRefreshError) {
-                              console.error(
-                                "Error refreshing shop data after upgrade:",
-                                shopRefreshError,
-                              );
-                              toast.error(
-                                "Account updated, but failed to refresh shop data.",
-                              );
-                            } else if (updatedShop) {
-                                                              setShop(updatedShop);
-                            }
-                            setIsBillingDialogOpen(false);
-                          }}
-                          onFailure={(errorMsg) => {
-                            toast.error(errorMsg);
-                          }}
-                          shopId={shop.id}
-                        />
-                      </Elements>
-                    </motion.div>
-                  )}
-                </motion.div>
-              )}
-            </motion.div>
-
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="secondary">
-                  Close
-                </Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        */}
-
-        {/* Removed Universal Edit Dialog */}
-        {/*
-        <Dialog
-          open={!!activeEditSection}
-          onOpenChange={(isOpen) => !isOpen && setActiveEditSection(null)}
-        >
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            {renderEditDialogContent()}
-          </DialogContent>
-        </Dialog>
-        */}
 
         <motion.div
           initial="initial"
