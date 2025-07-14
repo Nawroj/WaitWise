@@ -1,7 +1,7 @@
 // app/dashboard/analytics/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react"; // Added useCallback for consistency
+import { useState, useEffect, useMemo } from "react"; // Added useCallback for consistency
 import Image from "next/image";
 import { createClient } from "../../../lib/supabase/client";
 import { useRouter } from "next/navigation"; // Import useRouter for back button
