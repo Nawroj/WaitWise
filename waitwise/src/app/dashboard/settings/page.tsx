@@ -1097,7 +1097,7 @@ export default function SettingsPage() {
             <Card className="bg-card border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" /> Billing & Subscription
+                  <CreditCard className="h-5 w-5 " /> Billing & Subscription
                 </CardTitle>
                 <CardDescription>
                   Manage your subscription and payment methods.
@@ -1110,6 +1110,7 @@ export default function SettingsPage() {
                     <p className="text-sm">
                       Your payment of ${" "}
                       {(failedInvoice.amount_due / 100).toFixed(2)} on{" "}
+                      {/* Using the standard `format` from date-fns would be better here for consistency */}
                       {new Date(
                         failedInvoice.created_at,
                       ).toLocaleDateString()}{" "}
@@ -1148,24 +1149,12 @@ export default function SettingsPage() {
                     : "You have a payment method on file."}
                 </p>
 
+                {/* The "Upgrade Now" button and conditional form */}
+                {/* This is the change made to use handleUpgradeClick */}
                 <Button
                   variant="outline"
                   className="w-full hover:text-primary hover:border-primary"
-                  onClick={async () => {
-                    if (!isUpgrading) {
-                      const {
-                        data: { user },
-                      } = await supabase.auth.getUser();
-                      if (user && user.email) {
-                        setBillingEmail(user.email);
-                        setIsEmailPromptVisible(false);
-                      } else {
-                        setIsEmailPromptVisible(true);
-                        setBillingEmail("");
-                      }
-                    }
-                    setIsUpgrading(!isUpgrading);
-                  }}
+                  onClick={handleUpgradeClick}
                 >
                   {isUpgrading ? "Close Payment Form" : "Update Payment Method / Upgrade"}
                 </Button>
