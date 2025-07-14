@@ -1254,10 +1254,10 @@ export default function SettingsPage() {
         animate="animate"
         className="flex items-center justify-between gap-4 mb-6 pb-6 border-b border-border/50"
       >
-        <Button variant="ghost" onClick={() => router.back()} className="flex items-center text-[#ff284d]">
+        <Button variant="ghost" onClick={() => router.back()} className="flex items-center">
   <ChevronLeftCircle className="h-5 w-5" />
 </Button>
-<h1 className="text-3xl font-bold tracking-tight text-[#ff284d] absolute left-1/2 -translate-x-1/2">Settings</h1>        <div className="hidden lg:block"></div> {/* Spacer for desktop */}
+<h1 className="text-3xl font-bold tracking-tight absolute left-1/2 -translate-x-1/2">Settings</h1>        <div className="hidden lg:block"></div> {/* Spacer for desktop */}
       </motion.header>
 
       {/* Mobile Navigation Buttons (visible only on small screens) */}
@@ -1411,6 +1411,20 @@ export default function SettingsPage() {
           {renderSettingsContent()}
         </div>
       </motion.div>
+
+      <footer className="mt-16 py-6 text-center text-gray-300 bg-background border-t border-border/50"> {/* Removed text-3xl font-bold from footer itself as it's for text, not image */}
+        {/* Replace /path/to/your/logo.svg with the actual path to your SVG logo file */}
+        {/* Adjust width and height as needed. Tailwind's `w-auto h-12` is a good starting point for responsive sizing. */}
+        <Image
+          src="../Logo.svg" // Replace with your SVG path
+          alt="WaitWise Logo"
+          width={30} // Example width in pixels. Adjust as necessary.
+          height={15} // Example height in pixels. Adjust as necessary.
+          className="mx-auto" // Centers the image horizontally
+          priority // Optional: if this logo should load quickly on initial page load
+        />
+        <p className="text-sm text-muted-foreground mt-2">&copy; {new Date().getFullYear()} WaitWise. All rights reserved.</p> {/* Added copyright text, adjusted styling */}
+      </footer>
 
       {/* Dialog for Setting Barber Break */}
       <Dialog

@@ -197,9 +197,7 @@ export default function DashboardPage() {
     async (shopId: string) => {
       if (!shopId) return;
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Start of today
-
+      // Removed all date filtering. The queries will now return all entries for the shop.
       const [{ data: queueData, error: queueError }, { data: appointmentsData, error: appointmentsError }] = await Promise.all([
         supabase
           .from("queue_entries")
@@ -207,15 +205,13 @@ export default function DashboardPage() {
             `*, barbers ( id, name ), notification_sent_at, queue_entry_services ( services ( id, name, price ) )`,
           )
           .eq("shop_id", shopId)
-          .gte("created_at", today.toISOString())
-          .order("queue_position"),
+          .order("queue_position"), // Kept ordering
 
         supabase
           .from("appointments")
           .select(`*, barbers ( id, name )`)
           .eq("shop_id", shopId)
-          .gte("start_time", today.toISOString())
-          .order("start_time", { ascending: true })
+          .order("start_time", { ascending: true }) // Kept ordering
       ]);
 
       if (queueError) {
@@ -1428,8 +1424,18 @@ export default function DashboardPage() {
           )}
         </motion.div>
       </div>
-      <footer className="mt-16 py-6 text-center text-gray-300 text-3xl font-bold">
-  <p>WaitWise</p>
+      <footer className="mt-16 py-6 text-center text-gray-300 bg-background border-t border-border/50"> {/* Removed text-3xl font-bold from footer itself as it's for text, not image */}
+  {/* Replace /path/to/your/logo.svg with the actual path to your SVG logo file */}
+  {/* Adjust width and height as needed. Tailwind's `w-auto h-12` is a good starting point for responsive sizing. */}
+  <Image
+    src="Logo.svg" // Replace with your SVG path
+    alt="WaitWise Logo"
+    width={30} // Example width in pixels. Adjust as necessary.
+    height={15} // Example height in pixels. Adjust as necessary.
+    className="mx-auto" // Centers the image horizontally
+    priority // Optional: if this logo should load quickly on initial page load
+  />
+  <p className="text-sm text-muted-foreground mt-2">&copy; {new Date().getFullYear()} WaitWise. All rights reserved.</p> {/* Added copyright text, adjusted styling */}
 </footer>
       {/* Dialog for Editing Queue Entry */}
       <Dialog

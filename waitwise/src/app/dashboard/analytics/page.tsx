@@ -1,9 +1,11 @@
 // app/dashboard/analytics/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo} from "react";
+import { useState, useEffect, useMemo, useCallback } from "react"; // Added useCallback for consistency
 import Image from "next/image";
 import { createClient } from "../../../lib/supabase/client";
+import { useRouter } from "next/navigation"; // Import useRouter for back button
+import { Button } from "../../../components/ui/button"; // Import Button component
 import {
   Card,
   CardContent,
@@ -30,7 +32,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { Loader2} from "lucide-react";
+import { Loader2, ChevronLeftCircle } from "lucide-react"; // Import ChevronLeftCircle for back button
 import { toast } from "sonner";
 import { motion, easeInOut } from "framer-motion";
 
@@ -76,6 +78,7 @@ type AnalyticsData = {
 
 export default function AnalyticsPage() {
   const supabase = createClient();
+  const router = useRouter(); // Initialize useRouter
 
   const [shop, setShop] = useState<Shop | null>(null);
   // >>> Change 1: Initialize barbers with an empty array, but it will be updated
@@ -90,8 +93,7 @@ export default function AnalyticsPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        // In a real app, you might route.push('/login') here if unauthorized
-        // For this component, we'll just stop loading and show a message if no user
+        router.push('/login'); // Redirect to login if unauthorized
         return;
       }
       const { data: shopData, error: shopError } = await supabase
@@ -123,7 +125,7 @@ export default function AnalyticsPage() {
       // setIsAnalyticsLoading(false); // This will be handled by the next useEffect
     }
     fetchUserShopAndBarbers();
-  }, [supabase]);
+  }, [supabase, router]); // Added router to dependencies
 
   // Fetches analytics data based on selected range and shop ID
   useEffect(() => {
@@ -203,210 +205,214 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 bg-background text-foreground min-h-screen">
-      {/* Shop Header */}
-      <motion.header
-        variants={fadeIn}
-        initial="initial"
-        animate="animate"
-        className="mb-6 flex items-center justify-center border-b pb-4 border-border/50" // Centered for cleaner look
-      >
-        {shop.logo_url ? (
-          <div className="flex items-center">
-            <Image
-              src={shop.logo_url}
-              alt={`${shop.name} Logo`}
-              width={160} // Larger logo for page header
-              height={40} // Maintain aspect ratio
-              className="object-contain"
-              priority
-            />
-          </div>
-        ) : (
-          <h1 className="text-4xl font-extrabold tracking-tight text-primary">
-            {shop.name}
-          </h1>
-        )}
-      </motion.header>
+    <> {/* Use a fragment to wrap the main div and the footer */}
+      <div className="container mx-auto p-4 md:p-8 bg-background text-foreground min-h-screen">
+        {/* Header - Modified for back button and centering */}
+        <motion.header
+          variants={fadeIn}
+          initial="initial"
+          animate="animate"
+          className="w-full relative p-4 flex items-center justify-between max-w-7xl mx-auto border-b border-border/50 bg-transparent backdrop-blur-sm z-10 sticky top-0"
+        >
+          <Button variant="ghost" onClick={() => router.back()} className="flex items-center text-[#ff284d]">
+            <ChevronLeftCircle className="h-5 w-5" />
+          </Button>
+          <h1 className="text-3xl font-bold tracking-tight text-[#ff284d] absolute left-1/2 -translate-x-1/2">Analytics</h1>
+          <div className="hidden lg:block"></div> {/* Spacer for desktop */}
+        </motion.header>
 
-      <motion.div variants={fadeIn} initial="initial" animate="animate">
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-          <h1 className="text-xl font-bold tracking-tight">Analytics for {shop.name}</h1>
-          {/* Analytics Range Selector */}
-          <div>
-            <Select
-              value={analyticsRange}
-              onValueChange={setAnalyticsRange}
-              disabled={isAnalyticsLoading}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select a range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="week">This Week</SelectItem>
-                <SelectItem value="month">This Month</SelectItem>
-                <SelectItem value="all_time">All Time</SelectItem>
-              </SelectContent>
-            </Select>
+        <motion.div variants={fadeIn} initial="initial" animate="animate">
+          <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+            <h1 className="text-xl font-bold tracking-tight">Analytics for {shop.name}</h1>
+            {/* Analytics Range Selector */}
+            <div>
+              <Select
+                value={analyticsRange}
+                onValueChange={setAnalyticsRange}
+                disabled={isAnalyticsLoading}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select a range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                  <SelectItem value="all_time">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-        {isAnalyticsLoading ? (
-          <p className="text-center text-muted-foreground py-10">
-            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-            Loading analytics data...
-          </p>
-        ) : analyticsData ? (
-          <motion.div
-            initial="initial"
-            animate="animate"
-            variants={staggerContainer}
-          >
-            {/* Key Metrics Cards */}
-            <div className="grid grid-flow-col auto-cols-min overflow-x-auto gap-4 pb-4 mb-8 sm:grid-cols-2 lg:grid-cols-3 justify-items-stretch no-scrollbar">
-              {/* Total Revenue Card */}
-              <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
-                <Card className="h-28 w-full bg-gradient-to-br from-blue-100 to-blue-200 text-foreground shadow-sm flex flex-col p-4">
-                  <CardHeader className="p-0 mb-2 flex-grow">
-                    <CardTitle className="text-sm font-semibold text-blue-800">Total Revenue</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
-                    <p className="text-xl sm:text-lg md:text-xl font-bold text-blue-900">
-                      ${(analyticsData.totalRevenue || 0).toFixed(2)}
-                    </p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-              {/* Customers Served Card */}
-              <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
-                <Card className="h-28 w-full bg-gradient-to-br from-green-100 to-green-200 text-foreground shadow-sm flex flex-col p-4">
-                  <CardHeader className="p-0 mb-2 flex-grow">
-                    <CardTitle className="text-sm font-semibold text-green-800">Served</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
-                    <p className="text-xl sm:text-lg md:text-xl font-bold text-green-900">
-                      {analyticsData.totalCustomers || 0}
-                    </p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-              {/* No-Show Rate Card */}
-              <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
-                <Card className="h-28 w-full bg-gradient-to-br from-red-100 to-red-200 text-foreground shadow-sm flex flex-col p-4">
-                  <CardHeader className="p-0 mb-2 flex-grow">
-                    <CardTitle className="text-sm font-semibold text-red-800">No-Show Rate</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
-                    <p className="text-xl sm:text-lg md:text-xl font-bold text-red-900">
-                      {(analyticsData.noShowRate || 0).toFixed(1)}%
-                    </p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </div>
-            {/* Charts for Revenue and Clients per Staff Member */}
-            <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
-              <motion.div variants={fadeIn}>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Revenue per Staff Member</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart
-                        data={analyticsData.barberRevenueData || []}
-                        layout="vertical"
-                        margin={{
-                          top: 5,
-                          right: 30,
-                          left: 20,
-                          bottom: 5,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          type="number"
-                          tickFormatter={(value) => `$${value}`}
-                        />
-                        <YAxis
-                          type="category"
-                          dataKey="name"
-                          width={80}
-                        />
-                        <Tooltip
-                          formatter={(value: number) =>
-                            `$${Number(value).toFixed(2)}`
-                          }
-                        />
-                        <Bar dataKey="revenue" name="Total Revenue">
-                          {(analyticsData.barberRevenueData || []).map(
-                            (entry: { name: string }) => (
-                              <Cell
-                                key={`cell-${entry.name}`}
-                                // This is where the color from the map is applied
-                                fill={
-                                  barberColorMap[entry.name] ||
-                                  "#8884d8" // Fallback color
-                                }
-                              />
-                            ),
-                          )}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </motion.div>
-              <motion.div variants={fadeIn}>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Clients per Staff Member</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
-                        <Pie
-                          data={analyticsData.barberClientData || []}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={90}
-                          fill="#8884d8" // This fill is for the entire pie by default, but cells override it
-                          paddingAngle={5}
-                          dataKey="clients"
-                          nameKey="name"
-                          label={({ name, clients }) =>
-                            `${name}: ${clients}`
-                          }
+          {isAnalyticsLoading ? (
+            <p className="text-center text-muted-foreground py-10">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+              Loading analytics data...
+            </p>
+          ) : analyticsData ? (
+            <motion.div
+              initial="initial"
+              animate="animate"
+              variants={staggerContainer}
+            >
+              {/* Key Metrics Cards */}
+              <div className="grid grid-flow-col auto-cols-min overflow-x-auto gap-4 pb-4 mb-8 sm:grid-cols-2 lg:grid-cols-3 justify-items-stretch no-scrollbar">
+                {/* Total Revenue Card */}
+                <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
+                  <Card className="h-28 w-full bg-gradient-to-br from-blue-100 to-blue-200 text-foreground shadow-sm flex flex-col p-4">
+                    <CardHeader className="p-0 mb-2 flex-grow">
+                      <CardTitle className="text-sm font-semibold text-blue-800">Total Revenue</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
+                      <p className="text-xl sm:text-lg md:text-xl font-bold text-blue-900">
+                        ${(analyticsData.totalRevenue || 0).toFixed(2)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+                {/* Customers Served Card */}
+                <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
+                  <Card className="h-28 w-full bg-gradient-to-br from-green-100 to-green-200 text-foreground shadow-sm flex flex-col p-4">
+                    <CardHeader className="p-0 mb-2 flex-grow">
+                      <CardTitle className="text-sm font-semibold text-green-800">Served</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
+                      <p className="text-xl sm:text-lg md:text-xl font-bold text-green-900">
+                        {analyticsData.totalCustomers || 0}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+                {/* No-Show Rate Card */}
+                <motion.div variants={fadeIn} className="flex-shrink-0 w-full max-w-[220px] min-w-[150px]">
+                  <Card className="h-28 w-full bg-gradient-to-br from-red-100 to-red-200 text-foreground shadow-sm flex flex-col p-4">
+                    <CardHeader className="p-0 mb-2 flex-grow">
+                      <CardTitle className="text-sm font-semibold text-red-800">No-Show Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 flex flex-col justify-end items-end flex-grow px-4 pb-4">
+                      <p className="text-xl sm:text-lg md:text-xl font-bold text-red-900">
+                        {(analyticsData.noShowRate || 0).toFixed(1)}%
+                      </p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </div>
+              {/* Charts for Revenue and Clients per Staff Member */}
+              <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
+                <motion.div variants={fadeIn}>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Revenue per Staff Member</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart
+                          data={analyticsData.barberRevenueData || []}
+                          layout="vertical"
+                          margin={{
+                            top: 5,
+                            right: 30,
+                            left: 20,
+                            bottom: 5,
+                          }}
                         >
-                          {(analyticsData.barberClientData || []).map(
-                            (entry: { name: string }) => (
-                              <Cell
-                                key={`cell-${entry.name}`}
-                                // This is where the color from the map is applied
-                                fill={
-                                  barberColorMap[entry.name] ||
-                                  "#8884d8" // Fallback color
-                                }
-                              />
-                            ),
-                          )}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </div>
-          </motion.div>
-        ) : (
-          <p className="text-center text-muted-foreground">
-            No analytics data available for this period.
-          </p>
-        )}
-      </motion.div>
-    </div>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            type="number"
+                            tickFormatter={(value) => `$${value}`}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            width={80}
+                          />
+                          <Tooltip
+                            formatter={(value: number) =>
+                              `$${Number(value).toFixed(2)}`
+                            }
+                          />
+                          <Bar dataKey="revenue" name="Total Revenue">
+                            {(analyticsData.barberRevenueData || []).map(
+                              (entry: { name: string }) => (
+                                <Cell
+                                  key={`cell-${entry.name}`}
+                                  // This is where the color from the map is applied
+                                  fill={
+                                    barberColorMap[entry.name] ||
+                                    "#8884d8" // Fallback color
+                                  }
+                                />
+                              ),
+                            )}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+                <motion.div variants={fadeIn}>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Clients per Staff Member</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={analyticsData.barberClientData || []}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={90}
+                            fill="#8884d8" // This fill is for the entire pie by default, but cells override it
+                            paddingAngle={5}
+                            dataKey="clients"
+                            nameKey="name"
+                            label={({ name, clients }) =>
+                              `${name}: ${clients}`
+                            }
+                          >
+                            {(analyticsData.barberClientData || []).map(
+                              (entry: { name: string }) => (
+                                <Cell
+                                  key={`cell-${entry.name}`}
+                                  // This is where the color from the map is applied
+                                  fill={
+                                    barberColorMap[entry.name] ||
+                                    "#8884d8" // Fallback color
+                                  }
+                                />
+                              ),
+                            )}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </div>
+            </motion.div>
+          ) : (
+            <p className="text-center text-muted-foreground">
+              No analytics data available for this period.
+            </p>
+          )}
+        </motion.div>
+      </div>
+
+      {/* Footer - Added with WaitWise logo */}
+      <footer className="mt-16 py-6 text-center text-gray-300 bg-background border-t border-border/50">
+        <Image
+          src="../Logo.svg" // Make sure you have this SVG file in your public/ directory
+          alt="WaitWise Logo"
+          width={30} // Adjust width as needed
+          height={30} // Adjust height as needed
+          className="mx-auto"
+          priority
+        />
+        <p className="text-sm text-muted-foreground mt-2">&copy; {new Date().getFullYear()} WaitWise. All rights reserved.</p>
+      </footer>
+    </>
   );
 }

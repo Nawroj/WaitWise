@@ -1582,9 +1582,19 @@ export default function BookingClient({
           )}
         </>
       )}
-      <footer className="mt-16 py-6 text-center text-gray-300 text-2xl font-bold"> {/* Changed text-2xl to text-3xl for bigger, removed text-primary */}
-  <p>WaitWise</p>
-</footer>
+      <footer className="mt-16 py-6 text-center text-gray-300 bg-background border-t border-border/50"> {/* Removed text-3xl font-bold from footer itself as it's for text, not image */}
+        {/* Replace /path/to/your/logo.svg with the actual path to your SVG logo file */}
+        {/* Adjust width and height as needed. Tailwind's `w-auto h-12` is a good starting point for responsive sizing. */}
+        <Image
+          src="../Logo.svg" // Replace with your SVG path
+          alt="WaitWise Logo"
+          width={30} // Example width in pixels. Adjust as necessary.
+          height={15} // Example height in pixels. Adjust as necessary.
+          className="mx-auto" // Centers the image horizontally
+          priority // Optional: if this logo should load quickly on initial page load
+        />
+        <p className="text-sm text-muted-foreground mt-2">&copy; {new Date().getFullYear()} WaitWise. All rights reserved.</p> {/* Added copyright text, adjusted styling */}
+      </footer>
     </div>
   );
 }
